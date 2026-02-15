@@ -46,6 +46,8 @@ pub enum OpenJackError {
     WinnerProofInvalid,
     #[msg("Ownership proof is invalid")]
     OwnershipProofInvalid,
+    #[msg("Compression proof is invalid")]
+    CompressionProofInvalid,
     #[msg("Ticket already claimed")]
     AlreadyClaimed,
     #[msg("Signer is not ticket owner")]
@@ -58,4 +60,10 @@ pub enum OpenJackError {
     InvalidClaimAmount,
     #[msg("Insufficient pool balance")]
     InsufficientPoolBalance,
+    #[msg("Invalid ticket price")]
+    InvalidTicketPrice,
+    #[msg("Invalid cNFT mint accounts")]
+    CnftMintAccountsInvalid,
+    #[msg("Winner roots are incomplete for this round")]
+    WinnerRootsIncomplete,
 }

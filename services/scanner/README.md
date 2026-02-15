@@ -24,6 +24,9 @@ Environment:
 - `SCANNER_CONFIRM_POLL_MS` (default `2000`)
 - `SCANNER_DEAD_LETTER_DELAY_MS` (default `15000`)
 - `SCANNER_DEAD_LETTER_MAX_ATTEMPTS` (default `10`)
+- `SCANNER_AUTO_SEAL_SNAPSHOT=true|false` (default `true`)
+- `SCANNER_REQUIRE_SEALED_SNAPSHOT=true|false` (default `true`)
+- `SCANNER_SNAPSHOT_SCHEMA_VERSION` (default `1`)
 - `OPENJACK_API_BASE` (optional, ex `http://localhost:8080`)
 - `INGEST_API_KEY` (used when `OPENJACK_API_BASE` is set)
 - `OPENJACK_PROOF_MODE=off|file|das` (default `off`)
@@ -32,7 +35,7 @@ Environment:
 - `OPENJACK_ASSET_RESOLVER_MODE=off|file|postgres` (default `off`)
 - `OPENJACK_ASSET_MAP_PATH` (required when `OPENJACK_ASSET_RESOLVER_MODE=file`)
 - `OPENJACK_ASSET_DATABASE_URL` (optional override DB URL for resolver postgres mode)
-- `OPENJACK_ASSET_TABLE` (default `ticket_events`)
+- `OPENJACK_ASSET_TABLE` (default `ticket_ledger`)
 - `OPENJACK_ASSET_ROUND_COLUMN` (default `round_id`)
 - `OPENJACK_ASSET_LEAF_COLUMN` (default `leaf_index`)
 - `OPENJACK_ASSET_ID_COLUMN` (default `asset_id`)
@@ -45,7 +48,7 @@ Environment:
 - `OPENJACK_EVENT_LEAF_COLUMN` (default `leaf_index`)
 - `OPENJACK_RPC_LOOKBACK_LIMIT` (`rpc` mode; default `300`)
 - `OPENJACK_RPC_SLOT_BACKFILL_LIMIT` (`rpc-dual` mode; default `200`)
-- `OPENJACK_PERSIST_EVENTS=true|false` (default `false`; upsert canonical events into `ticket_events`)
+- `OPENJACK_PERSIST_EVENTS=true|false` (default `false`; upsert finalized canonical events into `ticket_ledger`)
 - `OPENJACK_SCAN_ROUND_ID` (default `42`)
 - `OPENJACK_SCANNER_MODE=once|daemon` (default `once`)
 - `OPENJACK_SCAN_INTERVAL_SECS` (daemon poll interval, default `30`)
@@ -53,6 +56,8 @@ Environment:
 - `OPENJACK_WINNING_MAIN` CSV (default `1,2,3,4,5`)
 - `OPENJACK_WINNING_BONUS` (default `1`)
 - `OPENJACK_FETCH_TIER_PAYOUTS=true|false` (default `false`)
+- `OPENJACK_AUDIT_LOG_PATH` (optional JSONL file path for ticket/publish audit trail)
+- `OPENJACK_AUDIT_SUMMARY_PATH` (optional JSON file path for latest round summary)
 
 `live` mode submits real `publish_winner_root` transactions via Anchor.
 

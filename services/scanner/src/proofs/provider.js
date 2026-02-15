@@ -16,6 +16,12 @@ class OffProofProvider {
       ...ticket,
       ticketProof: Array.isArray(ticket.ticketProof) ? ticket.ticketProof : [],
       ownershipProof: ticket.ownershipProof ?? null,
+      compressionRoot: ticket.compressionRoot || null,
+      compressionLeaf: ticket.compressionLeaf || null,
+      compressionIndex:
+        ticket.compressionIndex === undefined || ticket.compressionIndex === null
+          ? null
+          : Number(ticket.compressionIndex),
     };
   }
 }
@@ -49,6 +55,12 @@ class FileProofProvider {
       assetId: ticket.assetId || proof.assetId || null,
       ticketProof: Array.isArray(proof.ticketProof) ? proof.ticketProof : [],
       ownershipProof: proof.ownershipProof ?? null,
+      compressionRoot: proof.compressionRoot || null,
+      compressionLeaf: proof.compressionLeaf || null,
+      compressionIndex:
+        proof.compressionIndex === undefined || proof.compressionIndex === null
+          ? null
+          : Number(proof.compressionIndex),
     };
   }
 }
@@ -98,6 +110,12 @@ class DasProofProvider {
       ...ticket,
       assetId,
       ticketProof: Array.isArray(assetProof?.proof) ? assetProof.proof : [],
+      compressionRoot: assetProof?.root || null,
+      compressionLeaf: assetProof?.leaf || null,
+      compressionIndex:
+        assetProof?.node_index === undefined || assetProof?.node_index === null
+          ? ticket.leafIndex
+          : Number(assetProof.node_index),
       ownershipProof: {
         owner: asset?.ownership?.owner || null,
         delegate: asset?.ownership?.delegate || null,

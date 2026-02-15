@@ -28,6 +28,23 @@ function assertClaimTicket(ticket, index) {
       throw new Error(`tickets[${index}] missing ${key}`);
     }
   }
+  const ticketProof = Array.isArray(ticket.ticketProof) ? ticket.ticketProof : [];
+  const ownershipProof = ticket.ownershipProof || null;
+  const ownershipOwner = ownershipProof?.owner ? String(ownershipProof.owner) : "";
+  if (ticketProof.length > 0 && !ownershipOwner) {
+    throw new Error(`tickets[${index}] ownershipProof.owner required when ticketProof is present`);
+  }
+  const compressionRoot = ticket.compressionRoot || null;
+  const compressionLeaf = ticket.compressionLeaf || null;
+  const compressionIndex =
+    ticket.compressionIndex === undefined || ticket.compressionIndex === null
+      ? null
+      : Number(ticket.compressionIndex);
+  if (ticketProof.length > 0) {
+    if (!compressionRoot || !compressionLeaf || compressionIndex === null || Number.isNaN(compressionIndex)) {
+      throw new Error(`tickets[${index}] compression proof fields are required when ticketProof is present`);
+    }
+  }
   return {
     leafIndex: Number(ticket.leafIndex),
     tier: Number(ticket.tier),
@@ -35,8 +52,11 @@ function assertClaimTicket(ticket, index) {
     assetId: ticket.assetId || null,
     winnerRootHash: ticket.winnerRootHash || null,
     winnerRootProof: Array.isArray(ticket.winnerRootProof) ? ticket.winnerRootProof : [],
-    ticketProof: Array.isArray(ticket.ticketProof) ? ticket.ticketProof : [],
-    ownershipProof: ticket.ownershipProof || null,
+    compressionRoot,
+    compressionLeaf,
+    compressionIndex,
+    ticketProof,
+    ownershipProof,
   };
 }
 

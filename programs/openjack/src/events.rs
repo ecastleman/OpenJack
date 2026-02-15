@@ -6,6 +6,7 @@ pub struct TicketPurchased {
     pub leaf_index: u32,
     pub main: [u8; 5],
     pub bonus: u8,
+    pub asset_id: Pubkey,
     pub purchaser: Pubkey,
     pub paid_lamports: u64,
     pub ts: i64,

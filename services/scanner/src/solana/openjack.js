@@ -29,7 +29,14 @@ function readKeypair(filePath) {
 }
 
 function loadIdl() {
-  const raw = fs.readFileSync(DEFAULT_IDL_PATH, "utf8");
+  let idlPath = DEFAULT_IDL_PATH;
+  if (!fs.existsSync(idlPath)) {
+    const fallback = path.resolve(process.cwd(), "../../target/idl/openjack.json");
+    if (fs.existsSync(fallback)) {
+      idlPath = fallback;
+    }
+  }
+  const raw = fs.readFileSync(idlPath, "utf8");
   return JSON.parse(raw);
 }
 
@@ -93,4 +100,15 @@ export async function fetchRoundTierPayouts(roundId) {
   const roundAccount = await program.account.round.fetch(round);
   const payouts = roundAccount.tierPayoutPerWinner || [];
   return payouts.map((v) => Number(v.toString()));
+}
+
+export async function fetchRoundTreeAddress(roundId) {
+  const { program, programId } = getScannerProgram();
+  const round = deriveRoundPda(programId, roundId);
+  const roundAccount = await program.account.round.fetch(round);
+  const tree = roundAccount.treeAddress || roundAccount.tree_address || null;
+  if (!tree) {
+    throw new Error(`round ${roundId} has no tree address`);
+  }
+  return new PublicKey(tree).toBase58();
 }

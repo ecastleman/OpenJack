@@ -43,6 +43,11 @@ function firstClaimTicket(claim) {
   return claim.tickets.find((t) => Number(t.amount || 0) > 0) || claim.tickets[0];
 }
 
+function statusWithError(response, body) {
+  const err = body?.error ? ` error=${body.error}` : "";
+  return `status=${response.status}${err}`;
+}
+
 async function loadScannerPublishContext(roundId) {
   try {
     const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
@@ -197,7 +202,7 @@ async function run() {
     addCheck(
       "prepare_buy_tx",
       buyPrepared,
-      buyPrepared ? "unsigned tx prepared" : `status=${buyResp.res.status}`,
+      buyPrepared ? "unsigned tx prepared" : statusWithError(buyResp.res, buyResp.body),
     );
 
     const claimTicket = firstClaimTicket(claimResp.body);
@@ -215,7 +220,9 @@ async function run() {
       addCheck(
         "prepare_claim_tx",
         claimPrepared,
-        claimPrepared ? `leaf=${claimTicket.leafIndex} tier=${claimTicket.tier}` : `status=${claimPrepareResp.res.status}`,
+        claimPrepared
+          ? `leaf=${claimTicket.leafIndex} tier=${claimTicket.tier}`
+          : statusWithError(claimPrepareResp.res, claimPrepareResp.body),
         false,
       );
     }

@@ -85,3 +85,10 @@ Thumbs.db
 ##########
 *.bak
 vendor.bak/
+
+# Explicitly ignore all reports
+reports/
+
+# Ignore stray binaries
+node
+openjack@*

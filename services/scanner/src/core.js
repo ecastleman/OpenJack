@@ -14,30 +14,8 @@ function rollingTicketCommitment(events) {
   return acc;
 }
 
-function reconcileByLeafIndex(wsEvents, backfillEvents) {
-  const mapA = new Map(wsEvents.map((e) => [e.leafIndex, e]));
-  const mapB = new Map(backfillEvents.map((e) => [e.leafIndex, e]));
-
-  const mismatches = [];
-  const allKeys = [...new Set([...mapA.keys(), ...mapB.keys()])].sort((a, b) => a - b);
-  for (const key of allKeys) {
-    const a = mapA.get(key);
-    const b = mapB.get(key);
-    if (!a || !b) {
-      mismatches.push({ leafIndex: key, reason: "missing_in_one_pipeline" });
-      continue;
-    }
-    const ha = stableHash(JSON.stringify(a));
-    const hb = stableHash(JSON.stringify(b));
-    if (ha !== hb) {
-      mismatches.push({ leafIndex: key, reason: "payload_mismatch" });
-    }
-  }
-
-  return {
-    mismatches,
-    canonical: allKeys.map((k) => mapA.get(k) || mapB.get(k)),
-  };
+function normalizeCanonicalEvents(events) {
+  return (events || []).map(assertTicketPurchasedEvent);
 }
 
 function buildTierRoots(events, winning) {
@@ -74,7 +52,10 @@ function buildTierRoots(events, winning) {
     winnerRootHash: rootByTier.get(w.tier)?.rootHash || null,
     winnerRootProof: rootByTier.get(w.tier)?.proofsByLeaf.get(w.leafIndex) || [],
     ticketProof: [],
-    ownershipProof: null,
+    ownershipProof: {
+      owner: w.wallet,
+      delegate: null,
+    },
   }));
 
   return {
@@ -83,24 +64,13 @@ function buildTierRoots(events, winning) {
   };
 }
 
-export function runScannerRound({ wsEvents, backfillEvents, winning }) {
-  const normalizedWs = wsEvents.map(assertTicketPurchasedEvent);
-  const normalizedBackfill = backfillEvents.map(assertTicketPurchasedEvent);
-
-  const reconciliation = reconcileByLeafIndex(normalizedWs, normalizedBackfill);
-  if (reconciliation.mismatches.length > 0) {
-    return {
-      ok: false,
-      mismatches: reconciliation.mismatches,
-      message: "reconciliation failed; roots not published",
-    };
-  }
-
-  const { roots, claimCandidates } = buildTierRoots(reconciliation.canonical, winning);
+export function buildRoundArtifactsFromCanonicalEvents(events, winning) {
+  const normalized = normalizeCanonicalEvents(events);
+  const { roots, claimCandidates } = buildTierRoots(normalized, winning);
   return {
     ok: true,
-    observedTicketCount: reconciliation.canonical.length,
-    commitmentHash: rollingTicketCommitment(reconciliation.canonical),
+    observedTicketCount: normalized.length,
+    commitmentHash: rollingTicketCommitment(normalized),
     roots,
     claimCandidates,
   };

@@ -33,6 +33,11 @@ function findClaimTicket(claimEstimate) {
   return tickets.find((t) => Number(t.amount || 0) > 0) || tickets[0] || null;
 }
 
+function statusWithError(response, body) {
+  const err = body?.error ? ` error=${body.error}` : "";
+  return `status=${response.status}${err}`;
+}
+
 function getPg() {
   const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
   const req = createRequire(scannerPkgJson);
@@ -103,6 +108,7 @@ async function run() {
   const active = await getJson("/rounds/active");
   const activeRound = active.body?.round || null;
   roundId = roundId || Number(activeRound?.roundId || 0);
+  const roundStatus = String(activeRound?.status || "").toUpperCase();
   addCheck(
     "active_round",
     Boolean(roundId),
@@ -119,11 +125,18 @@ async function run() {
 
   const roots = await getJson(`/rounds/${roundId}/roots`);
   const rootsCount = Array.isArray(roots.body?.roots) ? roots.body.roots.length : 0;
+  const rootsRequired = roundStatus === "SETTLING" || roundStatus === "FINALIZED";
+  const rootsOk = roots.res.ok && (rootsRequired ? rootsCount > 0 : true);
+  const rootsDetails = roots.res.ok
+    ? rootsRequired
+      ? `roots=${rootsCount}`
+      : `roots=${rootsCount} (not required in ${roundStatus || "current"} status)`
+    : `status=${roots.res.status}`;
   addCheck(
     "roots_visible",
-    roots.res.ok && rootsCount > 0,
-    roots.res.ok ? `roots=${rootsCount}` : `status=${roots.res.status}`,
-    !STRICT,
+    rootsOk,
+    rootsDetails,
+    rootsRequired || STRICT,
   );
 
   const claimEstimate = await getJson(`/claims/estimate?roundId=${roundId}&wallet=${WALLET}`);
@@ -148,13 +161,13 @@ async function run() {
   addCheck(
     "prepare_buy_tx",
     buyOk,
-    buyOk ? "unsigned tx prepared" : `status=${buy.res.status}`,
+    buyOk ? "unsigned tx prepared" : statusWithError(buy.res, buy.body),
     true,
   );
 
   const ticket = findClaimTicket(claimEstimate.body);
   if (!ticket) {
-    addCheck("prepare_claim_tx", false, "no claim tickets available", !STRICT);
+    addCheck("prepare_claim_tx", false, "no claim tickets available", false);
   } else {
     const claim = await postJson("/tx/prepare/claim", {
       wallet: WALLET,
@@ -165,7 +178,7 @@ async function run() {
     addCheck(
       "prepare_claim_tx",
       claimOk,
-      claimOk ? `leaf=${ticket.leafIndex} tier=${ticket.tier}` : `status=${claim.res.status}`,
+      claimOk ? `leaf=${ticket.leafIndex} tier=${ticket.tier}` : statusWithError(claim.res, claim.body),
       !STRICT,
     );
   }

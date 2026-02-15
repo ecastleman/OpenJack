@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+use crate::errors::OpenJackError;
 use crate::state::LotteryConfig;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -81,6 +82,12 @@ pub fn set_official_scanner(
 
 pub fn set_treasury(ctx: Context<SetConfigAuthorityField>, new_treasury: Pubkey) -> Result<()> {
     ctx.accounts.config.treasury_pubkey = new_treasury;
+    Ok(())
+}
+
+pub fn set_ticket_price(ctx: Context<SetConfigAuthorityField>, ticket_price_usd_cents: u32) -> Result<()> {
+    require!(ticket_price_usd_cents > 0, OpenJackError::InvalidTicketPrice);
+    ctx.accounts.config.ticket_price_usd_cents = ticket_price_usd_cents;
     Ok(())
 }
 

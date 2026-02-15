@@ -20,6 +20,7 @@ See:
 - `docs/MILESTONES.md`
 - `docs/DEPENDENCY_VENDORING.md`
 - `docs/M7_INTEGRATION.md`
+- `docs/PROFILE_SETUP.md`
 
 ## Quick Commands
 

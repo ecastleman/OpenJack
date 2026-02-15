@@ -6,11 +6,19 @@ CREATE TABLE IF NOT EXISTS rounds (
   draw_ts BIGINT NOT NULL DEFAULT 0,
   settle_deadline_ts BIGINT NOT NULL DEFAULT 0,
   jackpot_pool_balance BIGINT NOT NULL DEFAULT 0,
+  winners_pool_balance BIGINT NOT NULL DEFAULT 0,
+  unclaimed_pool_balance BIGINT NOT NULL DEFAULT 0,
   tier_pool_balances JSONB NOT NULL DEFAULT '[0,0,0,0,0]'::jsonb,
   winning_main JSONB NOT NULL DEFAULT '[0,0,0,0,0]'::jsonb,
   winning_bonus INTEGER NOT NULL DEFAULT 0,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE rounds
+  ADD COLUMN IF NOT EXISTS winners_pool_balance BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE rounds
+  ADD COLUMN IF NOT EXISTS unclaimed_pool_balance BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS roots (
   round_id BIGINT NOT NULL,

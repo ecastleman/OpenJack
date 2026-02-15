@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
+use spl_account_compression::program::SplAccountCompression;
 
 use crate::constants::WINNERS_CLAIM_WINDOW_SECS;
 use crate::errors::OpenJackError;
@@ -11,6 +12,11 @@ pub struct ClaimArgs {
     pub leaf_index: u32,
     pub tier: u8,
     pub amount: u64,
+    pub ticket_owner: Pubkey,
+    pub compression_root: [u8; 32],
+    pub compression_leaf: [u8; 32],
+    pub compression_index: u32,
+    pub ticket_proof_hash: [u8; 32],
     pub winner_root_hash: [u8; 32],
     pub winner_root_proof: Vec<[u8; 32]>,
 }
@@ -34,6 +40,9 @@ pub struct Claim<'info> {
         space = 8 + std::mem::size_of::<ClaimRecord>()
     )]
     pub claim_record: Account<'info, ClaimRecord>,
+    /// CHECK: verified against round.tree_address and used for compression CPI
+    pub merkle_tree: UncheckedAccount<'info>,
+    pub compression_program: Program<'info, SplAccountCompression>,
     pub system_program: Program<'info, System>,
 }
 
@@ -43,15 +52,31 @@ pub struct SweepWinnersToUnclaimed<'info> {
     pub round: Account<'info, Round>,
 }
 
-pub fn claim(ctx: Context<Claim>, args: ClaimArgs) -> Result<()> {
+pub fn claim<'info>(
+    ctx: Context<'_, '_, '_, 'info, Claim<'info>>,
+    args: ClaimArgs,
+) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
-    let round = &mut ctx.accounts.round;
+    let round = &ctx.accounts.round;
     require!(
         round.status == RoundStatus::Finalized as u8,
         OpenJackError::InvalidRoundState
     );
     require!(args.tier <= 5, OpenJackError::TierOutOfRange);
     verify_winner_root_proof(round, &args)?;
+    verify_owner_matches_claimer(ctx.accounts.claimer.key(), args.ticket_owner)?;
+    let ticket_proof = extract_ticket_proof_from_remaining(&ctx)?;
+    verify_ticket_proof_binding(round, &args, &ticket_proof)?;
+    let merkle_tree_info = ctx.accounts.merkle_tree.to_account_info();
+    let compression_program_info = ctx.accounts.compression_program.to_account_info();
+    let remaining_accounts = ctx.remaining_accounts.to_vec();
+    verify_compression_membership_raw(
+        merkle_tree_info,
+        compression_program_info,
+        remaining_accounts,
+        round.tree_address,
+        &args,
+    )?;
 
     let expected_amount = round.tier_payout_per_winner[args.tier as usize];
     require!(expected_amount > 0, OpenJackError::WinnerProofInvalid);
@@ -60,12 +85,14 @@ pub fn claim(ctx: Context<Claim>, args: ClaimArgs) -> Result<()> {
         OpenJackError::InvalidClaimAmount
     );
 
+    let round = &mut ctx.accounts.round;
     let claim_window_end = round
         .finalized_ts
         .checked_add(WINNERS_CLAIM_WINDOW_SECS)
         .ok_or(OpenJackError::MathOverflow)?;
     let source_pool = if now <= claim_window_end { 0 } else { 1 };
     debit_claim_source_pool(round, source_pool, expected_amount)?;
+    pay_claim_to_claimer(round, &ctx.accounts.claimer.to_account_info(), expected_amount)?;
 
     let record = &mut ctx.accounts.claim_record;
     record.claimer = ctx.accounts.claimer.key();
@@ -85,6 +112,88 @@ pub fn claim(ctx: Context<Claim>, args: ClaimArgs) -> Result<()> {
         ts: record.claimed_ts,
     });
     Ok(())
+}
+
+fn pay_claim_to_claimer(round: &mut Account<Round>, claimer: &AccountInfo, amount: u64) -> Result<()> {
+    let round_info = round.to_account_info();
+    let round_data_len = round_info.data_len();
+    let min_rent_lamports = Rent::get()?.minimum_balance(round_data_len);
+    let round_balance = **round_info.lamports.borrow();
+    let post_balance = round_balance
+        .checked_sub(amount)
+        .ok_or(OpenJackError::InsufficientPoolBalance)?;
+    require!(
+        post_balance >= min_rent_lamports,
+        OpenJackError::InsufficientPoolBalance
+    );
+
+    **round_info.try_borrow_mut_lamports()? = post_balance;
+    **claimer.try_borrow_mut_lamports()? = claimer
+        .lamports()
+        .checked_add(amount)
+        .ok_or(OpenJackError::MathOverflow)?;
+    Ok(())
+}
+
+fn verify_owner_matches_claimer(claimer: Pubkey, ticket_owner: Pubkey) -> Result<()> {
+    require!(ticket_owner == claimer, OpenJackError::NotTicketOwner);
+    Ok(())
+}
+
+fn extract_ticket_proof_from_remaining(ctx: &Context<Claim>) -> Result<Vec<[u8; 32]>> {
+    require!(
+        !ctx.remaining_accounts.is_empty(),
+        OpenJackError::OwnershipProofInvalid
+    );
+    require!(
+        ctx.remaining_accounts.len() <= 64,
+        OpenJackError::OwnershipProofInvalid
+    );
+    Ok(ctx
+        .remaining_accounts
+        .iter()
+        .map(|account| account.key().to_bytes())
+        .collect())
+}
+
+fn verify_ticket_proof_binding(round: &Round, args: &ClaimArgs, ticket_proof: &[[u8; 32]]) -> Result<()> {
+    let computed = compute_ticket_proof_hash(
+        round.round_id,
+        round.tree_address,
+        args.leaf_index,
+        args.ticket_owner,
+        ticket_proof,
+    );
+    require!(
+        computed == args.ticket_proof_hash,
+        OpenJackError::OwnershipProofInvalid
+    );
+    Ok(())
+}
+
+fn verify_compression_membership_raw<'info>(
+    merkle_tree_info: AccountInfo<'info>,
+    compression_program_info: AccountInfo<'info>,
+    remaining_accounts: Vec<AccountInfo<'info>>,
+    expected_tree_address: Pubkey,
+    args: &ClaimArgs,
+) -> Result<()> {
+    require!(
+        merkle_tree_info.key() == expected_tree_address,
+        OpenJackError::CompressionProofInvalid
+    );
+    let cpi_accounts = spl_account_compression::cpi::accounts::VerifyLeaf {
+        merkle_tree: merkle_tree_info,
+    };
+    let cpi_ctx =
+        CpiContext::new(compression_program_info, cpi_accounts).with_remaining_accounts(remaining_accounts);
+    spl_account_compression::cpi::verify_leaf(
+        cpi_ctx,
+        args.compression_root,
+        args.compression_leaf,
+        args.compression_index,
+    )
+    .map_err(|_| OpenJackError::CompressionProofInvalid.into())
 }
 
 fn verify_winner_root_proof(round: &Round, args: &ClaimArgs) -> Result<()> {
@@ -118,6 +227,27 @@ fn hash_leaf_index(leaf_index: u32) -> [u8; 32] {
 fn hash_pair(a: [u8; 32], b: [u8; 32]) -> [u8; 32] {
     let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
     hashv(&[lo.as_ref(), hi.as_ref()]).to_bytes()
+}
+
+fn compute_ticket_proof_hash(
+    round_id: u64,
+    tree_address: Pubkey,
+    leaf_index: u32,
+    ticket_owner: Pubkey,
+    ticket_proof: &[[u8; 32]],
+) -> [u8; 32] {
+    let round_id_le = round_id.to_le_bytes();
+    let leaf_index_le = leaf_index.to_le_bytes();
+    let mut slices: Vec<&[u8]> = Vec::with_capacity(5 + ticket_proof.len());
+    slices.push(b"ticket-proof:");
+    slices.push(round_id_le.as_ref());
+    slices.push(tree_address.as_ref());
+    slices.push(leaf_index_le.as_ref());
+    slices.push(ticket_owner.as_ref());
+    for node in ticket_proof {
+        slices.push(node.as_ref());
+    }
+    hashv(&slices).to_bytes()
 }
 
 pub fn sweep_winners_to_unclaimed(ctx: Context<SweepWinnersToUnclaimed>) -> Result<()> {
@@ -359,5 +489,47 @@ mod tests {
         let proof_for_one = vec![a];
         assert_eq!(compute_merkle_root_for_leaf(0, &proof_for_zero), root);
         assert_eq!(compute_merkle_root_for_leaf(1, &proof_for_one), root);
+    }
+
+    #[test]
+    fn owner_must_match_claimer() {
+        let owner = Pubkey::new_unique();
+        let other = Pubkey::new_unique();
+        assert!(verify_owner_matches_claimer(owner, owner).is_ok());
+        assert!(verify_owner_matches_claimer(owner, other).is_err());
+    }
+
+    #[test]
+    fn ticket_proof_hash_is_deterministic() {
+        let owner = Pubkey::new_unique();
+        let tree = Pubkey::new_unique();
+        let proof = vec![[1u8; 32], [2u8; 32]];
+        let h1 = compute_ticket_proof_hash(42, tree, 7, owner, &proof);
+        let h2 = compute_ticket_proof_hash(42, tree, 7, owner, &proof);
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn ticket_proof_hash_changes_with_owner() {
+        let owner_a = Pubkey::new_unique();
+        let owner_b = Pubkey::new_unique();
+        let tree = Pubkey::new_unique();
+        let proof = vec![[3u8; 32]];
+        let h1 = compute_ticket_proof_hash(42, tree, 7, owner_a, &proof);
+        let h2 = compute_ticket_proof_hash(42, tree, 7, owner_b, &proof);
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn ticket_proof_hash_changes_with_round_context() {
+        let owner = Pubkey::new_unique();
+        let tree_a = Pubkey::new_unique();
+        let tree_b = Pubkey::new_unique();
+        let proof = vec![[4u8; 32]];
+        let h1 = compute_ticket_proof_hash(42, tree_a, 7, owner, &proof);
+        let h2 = compute_ticket_proof_hash(43, tree_a, 7, owner, &proof);
+        let h3 = compute_ticket_proof_hash(42, tree_b, 7, owner, &proof);
+        assert_ne!(h1, h2);
+        assert_ne!(h1, h3);
     }
 }

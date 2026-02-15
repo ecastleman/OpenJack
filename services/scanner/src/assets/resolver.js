@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
+import { PublicKey } from "@solana/web3.js";
+import { fetchRoundTreeAddress } from "../solana/openjack.js";
 
 class OffAssetResolver {
   async resolve() {
@@ -61,6 +63,36 @@ class PostgresAssetResolver {
   }
 }
 
+function toLe8(value) {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(BigInt(value));
+  return b;
+}
+
+class DerivedAssetResolver {
+  constructor({ bubblegumProgramId }) {
+    this.bubblegumProgramId = new PublicKey(
+      bubblegumProgramId || process.env.OPENJACK_BUBBLEGUM_PROGRAM_ID || "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY",
+    );
+    this.treeCache = new Map();
+  }
+
+  async resolve({ roundId, leafIndex }) {
+    const key = String(roundId);
+    let treeAddress = this.treeCache.get(key);
+    if (!treeAddress) {
+      treeAddress = await fetchRoundTreeAddress(roundId);
+      this.treeCache.set(key, treeAddress);
+    }
+    const tree = new PublicKey(treeAddress);
+    const [assetId] = PublicKey.findProgramAddressSync(
+      [Buffer.from("asset"), tree.toBuffer(), toLe8(leafIndex)],
+      this.bubblegumProgramId,
+    );
+    return assetId.toBase58();
+  }
+}
+
 export function getAssetResolverFromEnv() {
   const mode = (process.env.OPENJACK_ASSET_RESOLVER_MODE || "off").toLowerCase();
   if (mode === "off") return new OffAssetResolver();
@@ -78,10 +110,16 @@ export function getAssetResolverFromEnv() {
         process.env.SCANNER_DATABASE_URL ||
         process.env.DATABASE_URL ||
         "postgres://localhost:5432/openjack",
-      table: process.env.OPENJACK_ASSET_TABLE || "ticket_events",
+      table: process.env.OPENJACK_ASSET_TABLE || "ticket_ledger",
       roundColumn: process.env.OPENJACK_ASSET_ROUND_COLUMN || "round_id",
       leafColumn: process.env.OPENJACK_ASSET_LEAF_COLUMN || "leaf_index",
       assetColumn: process.env.OPENJACK_ASSET_ID_COLUMN || "asset_id",
+    });
+  }
+
+  if (mode === "derived") {
+    return new DerivedAssetResolver({
+      bubblegumProgramId: process.env.OPENJACK_BUBBLEGUM_PROGRAM_ID,
     });
   }
 

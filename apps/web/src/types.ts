@@ -1,8 +1,13 @@
 export type Round = {
   roundId: number;
   status: string;
+  openTs?: number;
+  closeTs?: number;
+  drawTs?: number;
   settleDeadlineTs: number;
   jackpotPoolBalance: number;
+  winnersPoolBalance?: number;
+  unclaimedPoolBalance?: number;
   winningMain?: number[];
   winningBonus?: number;
 };
@@ -28,8 +33,15 @@ export type ClaimTicket = {
   assetId?: string | null;
   winnerRootHash?: string | null;
   winnerRootProof?: string[];
+  compressionRoot?: string | null;
+  compressionLeaf?: string | null;
+  compressionIndex?: number | null;
   ticketProof?: string[];
-  ownershipProof?: unknown;
+  ownershipProof?: {
+    owner?: string | null;
+    delegate?: string | null;
+    ownershipModel?: string | null;
+  } | null;
 };
 
 export type PreparedTx = {
@@ -57,5 +69,33 @@ export type ScannerStatus = {
     status: string;
     count: number;
   }>;
+  warnings: string[];
+};
+
+export type RoundIngestionStatus = {
+  roundId: number;
+  ingestionState: {
+    roundId: number;
+    closeSlot: number;
+    finalizedWatermarkSlot: number;
+    ledgerTicketCount: number;
+    onchainTicketCount: number;
+    maxLedgerSlot: number;
+    sealed: boolean;
+    sealedAt: string | null;
+    readinessReason: string | null;
+    updatedAt: string | null;
+  } | null;
+  snapshot: {
+    roundId: number;
+    schemaVersion: number;
+    rowCount: number;
+    snapshotMaxSlot: number;
+    finalizedWatermarkSlot: number;
+    closeSlot: number;
+    snapshotHashHex: string | null;
+    createdAt: string | null;
+    createdBy: string | null;
+  } | null;
   warnings: string[];
 };

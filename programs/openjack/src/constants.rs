@@ -15,5 +15,10 @@ pub const LOWER_T3_BONUS_BPS: u16 = 1000;
 pub const LOWER_T2_BONUS_BPS: u16 = 500;
 
 pub const BPS_DENOMINATOR: u64 = 10_000;
+#[cfg(feature = "qa-fast-timers")]
+pub const SETTLEMENT_WINDOW_SECS: i64 = 120;
+#[cfg(all(not(feature = "qa-fast-timers"), feature = "dev-fast-timers"))]
+pub const SETTLEMENT_WINDOW_SECS: i64 = 180;
+#[cfg(all(not(feature = "qa-fast-timers"), not(feature = "dev-fast-timers")))]
 pub const SETTLEMENT_WINDOW_SECS: i64 = 3600;
 pub const WINNERS_CLAIM_WINDOW_SECS: i64 = 30 * 24 * 60 * 60;

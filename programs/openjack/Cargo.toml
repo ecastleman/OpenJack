@@ -14,10 +14,18 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build", "spl-account-compression/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
+dev-fast-timers = []
+dev-fast-program-id = []
+qa-fast-timers = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
+spl-account-compression = { version = "1.0.0", features = ["cpi"] }
+mpl-bubblegum = "2.1.1"
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -57,3 +57,7 @@ export async function setClaimEstimate(roundId, wallet, estimate) {
 export async function getScannerStatus(roundId) {
   return store.getScannerStatus(roundId);
 }
+
+export async function getRoundIngestionStatus(roundId) {
+  return store.getRoundIngestionStatus(roundId);
+}

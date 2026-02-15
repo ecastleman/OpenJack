@@ -2,6 +2,9 @@
 
 use anchor_lang::prelude::*;
 
+#[cfg(feature = "dev-fast-program-id")]
+declare_id!("Cnraeedx3R74G42eLHBz1rTbSwCQt62C2RC7iaejWSW3");
+#[cfg(not(feature = "dev-fast-program-id"))]
 declare_id!("2AWsuApMg1gr4e9Ybc5Uji5cJnjYDjYaqQzjn6s6draX");
 
 pub mod constants;
@@ -30,6 +33,13 @@ pub mod openjack {
 
     pub fn set_treasury(ctx: Context<SetConfigAuthorityField>, new_treasury: Pubkey) -> Result<()> {
         config::set_treasury(ctx, new_treasury)
+    }
+
+    pub fn set_ticket_price(
+        ctx: Context<SetConfigAuthorityField>,
+        ticket_price_usd_cents: u32,
+    ) -> Result<()> {
+        config::set_ticket_price(ctx, ticket_price_usd_cents)
     }
 
     pub fn set_oracle(
@@ -67,7 +77,10 @@ pub mod openjack {
         round::finalize_prizes(ctx)
     }
 
-    pub fn buy_tickets(ctx: Context<BuyTickets>, args: BuyTicketsArgs) -> Result<()> {
+    pub fn buy_tickets<'info>(
+        ctx: Context<'_, '_, '_, 'info, BuyTickets<'info>>,
+        args: BuyTicketsArgs,
+    ) -> Result<()> {
         purchase::buy_tickets(ctx, args)
     }
 
@@ -82,15 +95,17 @@ pub mod openjack {
         settle::publish_winner_root(ctx, args)
     }
 
-    pub fn challenge_omitted_winner(
-        ctx: Context<ChallengeOmittedWinner>,
-        tier: u8,
-        leaf_index: u32,
+    pub fn challenge_omitted_winner<'info>(
+        ctx: Context<'_, '_, '_, 'info, ChallengeOmittedWinner<'info>>,
+        args: ChallengeOmittedWinnerArgs,
     ) -> Result<()> {
-        settle::challenge_omitted_winner(ctx, tier, leaf_index)
+        settle::challenge_omitted_winner(ctx, args)
     }
 
-    pub fn claim(ctx: Context<Claim>, args: ClaimArgs) -> Result<()> {
+    pub fn claim<'info>(
+        ctx: Context<'_, '_, '_, 'info, Claim<'info>>,
+        args: ClaimArgs,
+    ) -> Result<()> {
         claim::claim(ctx, args)
     }
 

@@ -11,6 +11,8 @@ function toRound(row) {
     drawTs: Number(row.draw_ts),
     settleDeadlineTs: Number(row.settle_deadline_ts),
     jackpotPoolBalance: Number(row.jackpot_pool_balance),
+    winnersPoolBalance: Number(row.winners_pool_balance || 0),
+    unclaimedPoolBalance: Number(row.unclaimed_pool_balance || 0),
     tierPoolBalances: row.tier_pool_balances || [0, 0, 0, 0, 0],
     winningMain: row.winning_main || [0, 0, 0, 0, 0],
     winningBonus: Number(row.winning_bonus || 0),
@@ -47,6 +49,8 @@ export class PostgresStore {
         draw_ts BIGINT NOT NULL DEFAULT 0,
         settle_deadline_ts BIGINT NOT NULL DEFAULT 0,
         jackpot_pool_balance BIGINT NOT NULL DEFAULT 0,
+        winners_pool_balance BIGINT NOT NULL DEFAULT 0,
+        unclaimed_pool_balance BIGINT NOT NULL DEFAULT 0,
         tier_pool_balances JSONB NOT NULL DEFAULT '[0,0,0,0,0]'::jsonb,
         winning_main JSONB NOT NULL DEFAULT '[0,0,0,0,0]'::jsonb,
         winning_bonus INTEGER NOT NULL DEFAULT 0,
@@ -74,6 +78,12 @@ export class PostgresStore {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         PRIMARY KEY (round_id, wallet)
       );
+
+      ALTER TABLE rounds
+        ADD COLUMN IF NOT EXISTS winners_pool_balance BIGINT NOT NULL DEFAULT 0;
+
+      ALTER TABLE rounds
+        ADD COLUMN IF NOT EXISTS unclaimed_pool_balance BIGINT NOT NULL DEFAULT 0;
     `);
 
     this.ready = true;
@@ -81,9 +91,17 @@ export class PostgresStore {
 
   async getActiveRound() {
     await this.init();
+    const nowTs = Math.floor(Date.now() / 1000);
     const { rows } = await this.pool.query(
-      `SELECT * FROM rounds WHERE status <> $1 ORDER BY round_id DESC LIMIT 1`,
-      [ROUND_STATUS.FINALIZED],
+      `
+      SELECT *
+      FROM rounds
+      WHERE status <> $1
+        AND NOT (status = $2 AND close_ts > 0 AND close_ts < $3)
+      ORDER BY round_id DESC
+      LIMIT 1
+      `,
+      [ROUND_STATUS.FINALIZED, ROUND_STATUS.OPEN, nowTs],
     );
     return toRound(rows[0] || null);
   }
@@ -100,8 +118,9 @@ export class PostgresStore {
       `
       INSERT INTO rounds (
         round_id, status, open_ts, close_ts, draw_ts, settle_deadline_ts,
-        jackpot_pool_balance, tier_pool_balances, winning_main, winning_bonus
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10)
+        jackpot_pool_balance, winners_pool_balance, unclaimed_pool_balance,
+        tier_pool_balances, winning_main, winning_bonus
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12)
       ON CONFLICT (round_id) DO UPDATE SET
         status = EXCLUDED.status,
         open_ts = EXCLUDED.open_ts,
@@ -109,6 +128,8 @@ export class PostgresStore {
         draw_ts = EXCLUDED.draw_ts,
         settle_deadline_ts = EXCLUDED.settle_deadline_ts,
         jackpot_pool_balance = EXCLUDED.jackpot_pool_balance,
+        winners_pool_balance = EXCLUDED.winners_pool_balance,
+        unclaimed_pool_balance = EXCLUDED.unclaimed_pool_balance,
         tier_pool_balances = EXCLUDED.tier_pool_balances,
         winning_main = EXCLUDED.winning_main,
         winning_bonus = EXCLUDED.winning_bonus,
@@ -122,6 +143,8 @@ export class PostgresStore {
         round.drawTs || 0,
         round.settleDeadlineTs || 0,
         round.jackpotPoolBalance || 0,
+        round.winnersPoolBalance || 0,
+        round.unclaimedPoolBalance || 0,
         JSON.stringify(round.tierPoolBalances || [0, 0, 0, 0, 0]),
         JSON.stringify(round.winningMain || [0, 0, 0, 0, 0]),
         round.winningBonus || 0,
@@ -272,6 +295,94 @@ export class PostgresStore {
       }));
     } catch (error) {
       result.warnings.push(`scanner_publish_dead_letters_unavailable: ${error.message}`);
+    }
+
+    return result;
+  }
+
+  async getRoundIngestionStatus(roundId) {
+    await this.init();
+    const result = {
+      roundId: Number(roundId),
+      ingestionState: null,
+      snapshot: null,
+      warnings: [],
+    };
+
+    try {
+      const { rows } = await this.pool.query(
+        `
+        SELECT
+          round_id,
+          close_slot,
+          finalized_watermark_slot,
+          ledger_ticket_count,
+          onchain_ticket_count,
+          max_ledger_slot,
+          sealed,
+          sealed_at,
+          readiness_reason,
+          updated_at
+        FROM round_ingestion_state
+        WHERE round_id = $1
+        LIMIT 1
+        `,
+        [roundId],
+      );
+      const row = rows[0];
+      if (row) {
+        result.ingestionState = {
+          roundId: Number(row.round_id),
+          closeSlot: Number(row.close_slot || 0),
+          finalizedWatermarkSlot: Number(row.finalized_watermark_slot || 0),
+          ledgerTicketCount: Number(row.ledger_ticket_count || 0),
+          onchainTicketCount: Number(row.onchain_ticket_count || 0),
+          maxLedgerSlot: Number(row.max_ledger_slot || 0),
+          sealed: Boolean(row.sealed),
+          sealedAt: row.sealed_at || null,
+          readinessReason: row.readiness_reason || null,
+          updatedAt: row.updated_at || null,
+        };
+      }
+    } catch (error) {
+      result.warnings.push(`round_ingestion_state_unavailable: ${error.message}`);
+    }
+
+    try {
+      const { rows } = await this.pool.query(
+        `
+        SELECT
+          round_id,
+          schema_version,
+          row_count,
+          snapshot_max_slot,
+          finalized_watermark_slot,
+          close_slot,
+          snapshot_hash_hex,
+          created_at,
+          created_by
+        FROM round_ledger_snapshot
+        WHERE round_id = $1
+        LIMIT 1
+        `,
+        [roundId],
+      );
+      const row = rows[0];
+      if (row) {
+        result.snapshot = {
+          roundId: Number(row.round_id),
+          schemaVersion: Number(row.schema_version || 0),
+          rowCount: Number(row.row_count || 0),
+          snapshotMaxSlot: Number(row.snapshot_max_slot || 0),
+          finalizedWatermarkSlot: Number(row.finalized_watermark_slot || 0),
+          closeSlot: Number(row.close_slot || 0),
+          snapshotHashHex: row.snapshot_hash_hex || null,
+          createdAt: row.created_at || null,
+          createdBy: row.created_by || null,
+        };
+      }
+    } catch (error) {
+      result.warnings.push(`round_ledger_snapshot_unavailable: ${error.message}`);
     }
 
     return result;

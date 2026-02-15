@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{self, CreateAccount};
+use spl_account_compression::program::SplAccountCompression;
 
 use crate::errors::OpenJackError;
 use crate::events::{WinnerChallenged, WinnerRootPublished};
@@ -12,6 +13,17 @@ pub struct PublishWinnerRootArgs {
     pub winner_count: u32,
     pub observed_ticket_count: u32,
     pub commitment_hash: [u8; 32],
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct ChallengeOmittedWinnerArgs {
+    pub tier: u8,
+    pub leaf_index: u32,
+    pub ticket_owner: Pubkey,
+    pub compression_root: [u8; 32],
+    pub compression_leaf: [u8; 32],
+    pub compression_index: u32,
+    pub ticket_proof: Vec<[u8; 32]>,
 }
 
 #[derive(Accounts)]
@@ -66,6 +78,9 @@ pub struct ChallengeOmittedWinner<'info> {
     /// and data is deserialized/serialized as WinnerRecord after ownership checks.
     #[account(mut)]
     pub winner_record: UncheckedAccount<'info>,
+    /// CHECK: verified against round.tree_address and used for compression CPI
+    pub merkle_tree: UncheckedAccount<'info>,
+    pub compression_program: Program<'info, SplAccountCompression>,
     pub system_program: Program<'info, System>,
 }
 
@@ -117,24 +132,33 @@ pub fn publish_winner_root(
     Ok(())
 }
 
-pub fn challenge_omitted_winner(
-    ctx: Context<ChallengeOmittedWinner>,
-    tier: u8,
-    leaf_index: u32,
+pub fn challenge_omitted_winner<'info>(
+    ctx: Context<'_, '_, '_, 'info, ChallengeOmittedWinner<'info>>,
+    args: ChallengeOmittedWinnerArgs,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
-    let round = &mut ctx.accounts.round;
+    let round = &ctx.accounts.round;
     validate_challenge_context(
         round.status,
         now,
         round.settle_deadline_ts,
-        tier,
+        args.tier,
         ctx.accounts.scanner_bond.posted,
+    )?;
+    let merkle_tree_info = ctx.accounts.merkle_tree.to_account_info();
+    let compression_program_info = ctx.accounts.compression_program.to_account_info();
+    let remaining_accounts = ctx.remaining_accounts.to_vec();
+    verify_challenge_compression_membership_raw(
+        merkle_tree_info,
+        compression_program_info,
+        remaining_accounts,
+        round.tree_address,
+        &args,
     )?;
 
     let round_id_bytes = round.round_id.to_le_bytes();
-    let leaf_index_bytes = leaf_index.to_le_bytes();
-    let tier_bytes = [tier];
+    let leaf_index_bytes = args.leaf_index.to_le_bytes();
+    let tier_bytes = [args.tier];
     let winner_seeds = [
         b"winner".as_ref(),
         round_id_bytes.as_ref(),
@@ -195,7 +219,7 @@ pub fn challenge_omitted_winner(
     }
 
     let round = &mut ctx.accounts.round;
-    let idx = tier as usize;
+    let idx = args.tier as usize;
     round.tier_winner_counts[idx] = round.tier_winner_counts[idx]
         .checked_add(1)
         .ok_or(OpenJackError::MathOverflow)?;
@@ -213,8 +237,8 @@ pub fn challenge_omitted_winner(
 
     emit!(WinnerChallenged {
         round_id: round.round_id,
-        tier,
-        leaf_index,
+        tier: args.tier,
+        leaf_index: args.leaf_index,
         challenger: ctx.accounts.challenger.key(),
         slash_lamports: slash,
         ts: now,
@@ -266,6 +290,50 @@ fn validate_challenge_context(
     require!(tier <= 5, OpenJackError::TierOutOfRange);
     require!(bond_posted, OpenJackError::ScannerBondMissing);
     Ok(())
+}
+
+fn verify_challenge_compression_membership_raw<'info>(
+    merkle_tree_info: AccountInfo<'info>,
+    compression_program_info: AccountInfo<'info>,
+    remaining_accounts: Vec<AccountInfo<'info>>,
+    expected_tree_address: Pubkey,
+    args: &ChallengeOmittedWinnerArgs,
+) -> Result<()> {
+    require!(
+        merkle_tree_info.key() == expected_tree_address,
+        OpenJackError::CompressionProofInvalid
+    );
+    require!(
+        args.compression_index == args.leaf_index,
+        OpenJackError::CompressionProofInvalid
+    );
+    require!(
+        !args.ticket_proof.is_empty(),
+        OpenJackError::CompressionProofInvalid
+    );
+    require!(
+        remaining_accounts.len() == args.ticket_proof.len(),
+        OpenJackError::CompressionProofInvalid
+    );
+    for (i, node) in args.ticket_proof.iter().enumerate() {
+        require!(
+            remaining_accounts[i].key().to_bytes() == *node,
+            OpenJackError::CompressionProofInvalid
+        );
+    }
+
+    let cpi_accounts = spl_account_compression::cpi::accounts::VerifyLeaf {
+        merkle_tree: merkle_tree_info,
+    };
+    let cpi_ctx =
+        CpiContext::new(compression_program_info, cpi_accounts).with_remaining_accounts(remaining_accounts);
+    spl_account_compression::cpi::verify_leaf(
+        cpi_ctx,
+        args.compression_root,
+        args.compression_leaf,
+        args.compression_index,
+    )
+    .map_err(|_| OpenJackError::CompressionProofInvalid.into())
 }
 
 fn compute_slash_lamports(configured_slash: u64, bond_amount: u64, slashed_so_far: u64) -> u64 {

@@ -50,6 +50,8 @@ function toRoundUpdate(roundId, account) {
     drawTs: bnToNumber(account.drawTs),
     settleDeadlineTs: bnToNumber(account.settleDeadlineTs),
     jackpotPoolBalance: bnToNumber(account.jackpotPoolBalance),
+    winnersPoolBalance: bnToNumber(account.winnersPoolBalance),
+    unclaimedPoolBalance: bnToNumber(account.unclaimedPoolBalance),
     tierPoolBalances: (account.tierPoolBalances || []).map(bnToNumber),
     winningMain: account.winningMain || [0, 0, 0, 0, 0],
     winningBonus: bnToNumber(account.winningBonus),

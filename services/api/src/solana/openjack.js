@@ -92,6 +92,28 @@ export function hexToU8_32(hex) {
   return [...bytes];
 }
 
+export function bytes32FromHexOrBase58(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    throw new Error("expected 32-byte hex or base58");
+  }
+  const clean = raw.startsWith("0x") ? raw.slice(2) : raw;
+  const looksHex = /^[0-9a-fA-F]+$/.test(clean);
+  if (looksHex && clean.length <= 64) {
+    return hexToU8_32(clean);
+  }
+  try {
+    const pk = new PublicKey(raw);
+    const bytes = pk.toBytes();
+    if (bytes.length !== 32) {
+      throw new Error("expected 32-byte hex or base58");
+    }
+    return [...bytes];
+  } catch {
+    throw new Error("expected 32-byte hex or base58");
+  }
+}
+
 function toLe8(value) {
   const b = Buffer.alloc(8);
   b.writeBigUInt64LE(BigInt(value));

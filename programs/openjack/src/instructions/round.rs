@@ -283,9 +283,14 @@ mod tests {
 pub fn finalize_prizes(ctx: Context<FinalizePrizes>) -> Result<()> {
     let round = &mut ctx.accounts.round;
     let now = Clock::get()?.unix_timestamp;
+    const ALL_TIERS_MASK: u8 = 0b0011_1111;
     require!(
         round.status == RoundStatus::Settling as u8,
         OpenJackError::InvalidRoundState
+    );
+    require!(
+        round.roots_committed_mask == ALL_TIERS_MASK,
+        OpenJackError::WinnerRootsIncomplete
     );
     require!(
         now > round.settle_deadline_ts,

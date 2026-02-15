@@ -7,6 +7,7 @@ const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.jso
 const scannerRequire = createRequire(scannerPkgJson);
 const anchor = scannerRequire("@coral-xyz/anchor");
 const { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram } = scannerRequire("@solana/web3.js");
+const COMPRESSION_PROGRAM_ID = new PublicKey("cmtDvXumGCrqC1Age74AVPhSRVXJMd8PJS91L8KbNCK");
 
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const ANCHOR_TOML_PATH = path.resolve(process.cwd(), "Anchor.toml");
@@ -50,6 +51,23 @@ function bytes32FromHex(hex) {
   const b = Buffer.from(clean.padStart(64, "0"), "hex");
   if (b.length !== 32) throw new Error("expected 32-byte hex");
   return [...b];
+}
+
+function ticketProofHash({ roundId, treeAddress, leafIndex, owner, proof }) {
+  const hasher = crypto.createHash("sha256");
+  const roundIdLe = Buffer.alloc(8);
+  roundIdLe.writeBigUInt64LE(BigInt(roundId));
+  const le = Buffer.alloc(4);
+  le.writeUInt32LE(Number(leafIndex));
+  hasher.update(Buffer.from("ticket-proof:"));
+  hasher.update(roundIdLe);
+  hasher.update(treeAddress.toBuffer());
+  hasher.update(le);
+  hasher.update(owner.toBuffer());
+  for (const node of proof) {
+    hasher.update(Buffer.from(node));
+  }
+  return [...hasher.digest()];
 }
 
 function le8(n) {
@@ -294,6 +312,18 @@ async function run() {
       leafIndex: 0,
       tier: 0,
       amount: new anchor.BN(claimAmount),
+      ticketOwner: walletPk,
+      compressionRoot: rootHash,
+      compressionLeaf: rootHash,
+      compressionIndex: 0,
+      ticketProofHash: ticketProofHash({
+        roundId: ROUND_ID,
+        treeAddress: walletPk,
+        leafIndex: 0,
+        owner: walletPk,
+        proof: [rootHash],
+      }),
+      ticketProof: [rootHash],
       winnerRootHash: rootHash,
       winnerRootProof: [],
     })
@@ -301,8 +331,11 @@ async function run() {
       claimer: walletPk,
       round,
       claimRecord: pdaClaim(ROUND_ID, 0),
+      merkleTree: walletPk,
+      compressionProgram: COMPRESSION_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })
+    .remainingAccounts([{ pubkey: new PublicKey(Buffer.from(rootHash)), isSigner: false, isWritable: false }])
     .rpc();
   console.log("claim", sigClaim);
 

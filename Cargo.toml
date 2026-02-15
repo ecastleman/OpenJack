@@ -1,0 +1,19 @@
+[workspace]
+members = [
+  "programs/openjack"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["OpenJack"]
+
+[workspace.dependencies]
+anchor-lang = "0.31.1"
+
+[profile.release]
+overflow-checks = true
+
+[patch.crates-io]
+blake3 = { git = "https://github.com/BLAKE3-team/BLAKE3", tag = "1.5.5" }

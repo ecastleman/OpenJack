@@ -1,0 +1,14 @@
+{
+  "name": "@openjack/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.98.4",
+    "pg": "^8.13.1"
+  }
+}

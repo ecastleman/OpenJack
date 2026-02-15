@@ -1,0 +1,25 @@
+export const OPENJACK_CONSTANTS = {
+  MAIN_N: 50,
+  BONUS_N: 10,
+  MAIN_K: 5,
+  TIER_COUNT: 6,
+  SETTLING_WINDOW_SECS: 3600,
+  WINNERS_CLAIM_WINDOW_SECS: 30 * 24 * 60 * 60,
+};
+
+export const ROUND_STATUS = {
+  OPEN: "OPEN",
+  CLOSED: "CLOSED",
+  DRAWING: "DRAWING",
+  SETTLING: "SETTLING",
+  FINALIZED: "FINALIZED",
+};
+
+export const TIER_LABELS = [
+  "JACKPOT",
+  "T5_ONLY",
+  "T4_BONUS",
+  "T4_ONLY",
+  "T3_BONUS",
+  "T2_BONUS",
+];

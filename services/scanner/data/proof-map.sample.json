@@ -1,0 +1,27 @@
+{
+  "byLeafIndex": {
+    "0": {
+      "assetId": "ASSET_ID_FOR_LEAF_0",
+      "ticketProof": [
+        "abcdef0123456789",
+        "0123456789abcdef"
+      ],
+      "ownershipProof": {
+        "owner": "Wallet1111111111111111111111111111111111",
+        "delegate": null
+      }
+    }
+  },
+  "byAssetId": {
+    "ASSET_ID_FOR_LEAF_0": {
+      "ticketProof": [
+        "abcdef0123456789",
+        "0123456789abcdef"
+      ],
+      "ownershipProof": {
+        "owner": "Wallet1111111111111111111111111111111111",
+        "delegate": null
+      }
+    }
+  }
+}

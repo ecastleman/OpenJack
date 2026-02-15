@@ -1,0 +1,87 @@
+########################################
+# OpenJack - Solana / Anchor Monorepo
+########################################
+
+##########
+# Node / JS
+##########
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.cache/
+**/.turbo/
+**/.next/
+**/.vercel/
+
+# Vite/TS build artifacts
+**/*.tsbuildinfo
+
+##########
+# Web build output (don’t commit compiled bundles)
+##########
+apps/**/dist/
+
+##########
+# Rust / Anchor
+##########
+target/
+**/target/
+**/.anchor/
+
+# Local cargo config/cache (your repo has .cargo/*)
+.cargo/
+
+##########
+# Solana local validator / ledgers
+##########
+test-ledger/
+
+##########
+# Keys & secrets (CRITICAL)
+##########
+keys/
+**/*keypair*.json
+**/*id.json
+**/*.key
+**/*.pem
+
+##########
+# Env files
+##########
+.env
+.env.*
+*.env
+*.local
+
+##########
+# Reports / generated artifacts
+##########
+reports/**/*.json
+reports/**/*.md
+reports/**/repo-export/
+
+##########
+# Infra (Terraform etc.)
+##########
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/secrets*
+**/*.secret
+
+##########
+# OS / Editor
+##########
+.DS_Store
+.AppleDouble
+Thumbs.db
+.vscode/
+.idea/
+
+##########
+# Backups
+##########
+*.bak
+vendor.bak/

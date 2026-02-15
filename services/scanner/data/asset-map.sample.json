@@ -1,0 +1,11 @@
+{
+  "byRound": {
+    "42": {
+      "0": "ASSET_ID_FOR_ROUND_42_LEAF_0",
+      "1": "ASSET_ID_FOR_ROUND_42_LEAF_1"
+    }
+  },
+  "byLeafIndex": {
+    "0": "ASSET_ID_FALLBACK_FOR_LEAF_0"
+  }
+}

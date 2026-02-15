@@ -1,0 +1,19 @@
+{
+  "name": "openjack",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "api": "npm --prefix services/api run start",
+    "scanner": "npm --prefix services/scanner run start",
+    "web": "npm --prefix apps/web run dev",
+    "e2e:devnet": "node scripts/devnet-e2e-openjack.mjs",
+    "preflight": "bash scripts/preflight-local.sh",
+    "seeker:smoke": "node scripts/seeker-smoke.mjs",
+    "seeker:report": "SMOKE_WRITE_REPORT=true node scripts/seeker-smoke.mjs",
+    "seeker:ready": "node scripts/seeker-ready-check.mjs",
+    "seeker:beta": "node scripts/seeker-beta.mjs",
+    "seeker:live": "node scripts/seeker-live-checklist.mjs",
+    "seeker:vertical": "node scripts/seeker-vertical.mjs",
+    "keeper": "node scripts/round-orchestrator.mjs"
+  }
+}

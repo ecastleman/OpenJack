@@ -1,6 +1,7 @@
 # OpenJack
 
-OpenJack is a Powerball-inspired lottery dApp on Solana with tradable cNFT tickets, VRF-based draws, SOL/USD oracle pricing, and claim-only payouts after finalization.
+**OpenJack is a fully on-chain lottery protocol built on Solana with cryptographic settlement guarantees.**
+Tickets are issued as compressed NFTs (cNFTs), enabling scalable ownership tracking and wallet-native ticket management. After each round, winners are computed off-chain and a Merkle root of payouts is committed on-chain. Claims require both valid cNFT ownership and a verified Merkle proof, ensuring payouts are enforced by the program itself. The stack includes an Anchor-based program, a Postgres-backed API, a dual-ingestion scanner, and a React frontend with real devnet transaction flows.
 
 ## Workspace
 

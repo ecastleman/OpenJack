@@ -57,6 +57,13 @@ function assertClaimTicket(ticket, index) {
     compressionIndex,
     ticketProof,
     ownershipProof,
+    proofStatus: ticket.proofStatus || null,
+    proofProvider: ticket.proofProvider || null,
+    proofError: ticket.proofError || null,
+    proofAttemptCount:
+      ticket.proofAttemptCount === undefined || ticket.proofAttemptCount === null
+        ? 0
+        : Number(ticket.proofAttemptCount),
   };
 }
 

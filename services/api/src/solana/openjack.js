@@ -2,9 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { fileURLToPath } from "node:url";
 
 const ANCHOR_TOML_PATH = path.resolve(process.cwd(), "Anchor.toml");
-const DEFAULT_IDL_PATH = process.env.OPENJACK_IDL_PATH || path.resolve(process.cwd(), "target/idl/openjack.json");
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(MODULE_DIR, "../../../..");
+const IDL_PATH_CANDIDATES = [
+  process.env.OPENJACK_IDL_PATH,
+  path.resolve(process.cwd(), "target/idl/openjack.json"),
+  path.resolve(REPO_ROOT, "target/idl/openjack.json"),
+].filter(Boolean);
 
 let cached = null;
 
@@ -27,7 +34,13 @@ export function getConnection() {
 }
 
 function loadIdl() {
-  const raw = fs.readFileSync(DEFAULT_IDL_PATH, "utf8");
+  const idlPath = IDL_PATH_CANDIDATES.find((candidate) => fs.existsSync(candidate));
+  if (!idlPath) {
+    throw new Error(
+      `IDL not found; checked: ${IDL_PATH_CANDIDATES.join(", ")}. Set OPENJACK_IDL_PATH to a valid openjack.json`,
+    );
+  }
+  const raw = fs.readFileSync(idlPath, "utf8");
   return JSON.parse(raw);
 }
 

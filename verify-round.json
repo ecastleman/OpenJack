@@ -1,0 +1,23 @@
+{
+  "roundId": 1771457253,
+  "wallet": "Gn6t3FuPtFcpcen9Vgxn9asVwtGq8FUb3jmL5GXBjfh7",
+  "verdict": "CLAIMED",
+  "roundStatus": 4,
+  "claimableTickets": 0,
+  "potentialLamports": 0,
+  "estimateTickets": 0,
+  "hydration": {
+    "roundId": 1771457253,
+    "counts": {
+      "pendingProof": 0,
+      "hydrated": 6,
+      "failed": 0,
+      "total": 6
+    },
+    "provider": "das",
+    "lastHydrationAt": "2026-02-19T00:27:05.145Z",
+    "lastError": null,
+    "oldestPendingAgeMs": null,
+    "sampleFailures": []
+  }
+}

@@ -2,6 +2,7 @@ import { buildRoundArtifactsFromCanonicalEvents } from "../core.js";
 import { RootPublisher } from "../adapters/publisher.js";
 import { TicketLedgerRepo } from "../repo/ticketLedger.js";
 import { getScannerProgram } from "../solana/openjack.js";
+import { enrichTicketsWithProofProvider } from "../proofs/provider.js";
 
 export async function runAndPublishRound({
   roundId,
@@ -45,8 +46,8 @@ export async function runAndPublishRound({
     );
   }
 
-  if (proofProvider && Array.isArray(claimCandidates)) {
-    claimCandidates = await Promise.all(claimCandidates.map((t) => proofProvider.enrich(t)));
+  if (Array.isArray(claimCandidates)) {
+    claimCandidates = await enrichTicketsWithProofProvider(claimCandidates, proofProvider);
   }
 
   const publish = await publisher.publishRoundRoots({

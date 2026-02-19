@@ -21,6 +21,8 @@ See:
 - `docs/DEPENDENCY_VENDORING.md`
 - `docs/M7_INTEGRATION.md`
 - `docs/PROFILE_SETUP.md`
+- `docs/CLAIMABILITY_CONTRACT.md`
+- `docs/UI_STATE_MODEL.md`
 
 ## Quick Commands
 

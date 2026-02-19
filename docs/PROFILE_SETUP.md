@@ -3,7 +3,7 @@
 OpenJack supports two local/devnet operating profiles:
 
 - `dev-fast`: short settlement window (3 minutes) for rapid testing.
-- `qa-fast`: very short settlement window (20 seconds) for automated protocol gate cycles.
+- `qa-fast`: short settlement window (120 seconds) for automated protocol gate cycles.
 - `prod-like`: standard settlement window (1 hour) for realistic behavior.
 
 Note:
@@ -48,6 +48,16 @@ npm run build:program:qa-fast
 `dev-fast` uses Cargo feature `dev-fast-timers`, which sets:
 
 - `SETTLEMENT_WINDOW_SECS = 180`
+
+`dev-fast` is the default demo/operator convenience profile:
+
+- proof mode defaults to `das`
+- gate auto-claim defaults to `false` (explicit in profile env)
+- if you enable auto-claim, gate logs a startup warning that estimates will drop after claim execution
+
+`qa-fast` uses Cargo feature `qa-fast-timers`, which sets:
+
+- `SETTLEMENT_WINDOW_SECS = 120`
 
 ## 3) Deploy Separate Program IDs
 
@@ -100,3 +110,21 @@ npm run with-profile -- dev-fast npm run seeker:vertical
 - `dev-fast` and `prod-like` are intended to stay operationally separate.
 - Keep scanner/keeper/API/frontend on the same profile/program ID during a test session.
 - Do not reuse `dev-fast` program IDs for production-like validation.
+
+## 6) Frozen Profile Defaults
+
+- `dev-fast`:
+  - `OPENJACK_PROOF_MODE=das`
+  - `OPENJACK_GATE_SKIP_AUTO_CLAIM=false` (demo mode)
+- `qa-fast`:
+  - `OPENJACK_PROOF_MODE=off`
+  - `OPENJACK_GATE_SKIP_AUTO_CLAIM=true`
+- `prod-like`:
+  - `OPENJACK_PROOF_MODE=das`
+  - `OPENJACK_GATE_SKIP_AUTO_CLAIM=true`
+
+`scripts/with-profile.mjs` and `scripts/protocol-gate.mjs` enforce:
+
+- profile program-id assertions
+- proof-mode schema validation (`off|das`)
+- runtime profile fingerprint logging

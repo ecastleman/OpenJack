@@ -1,13 +1,22 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { runAndPublishRound } from "./pipelines/runRound.js";
 import { buildRoundArtifactsFromCanonicalEvents } from "./core.js";
-import { getProofProviderFromEnv } from "./proofs/provider.js";
+import { enrichTicketsWithProofProvider, getProofProviderFromEnv } from "./proofs/provider.js";
 import { getAssetResolverFromEnv } from "./assets/resolver.js";
 import { loadRoundEvents, parseWinningFromEnv } from "./events/source.js";
 import { fetchRoundTierPayouts } from "./solana/openjack.js";
 import { TicketLedgerRepo } from "./repo/ticketLedger.js";
 import { createAuditLoggerFromEnv } from "./audit/logger.js";
+import { ProofHydrationRepo } from "./repo/proofHydration.js";
+import { loadEnvLocal } from "../../../scripts/env-local.mjs";
+
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(MODULE_DIR, "../../..");
+loadEnvLocal({ cwd: REPO_ROOT });
 
 const audit = createAuditLoggerFromEnv();
+const proofHydrationRepo = new ProofHydrationRepo();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -98,21 +107,10 @@ async function pushClaimCandidatesToApi(result, roundId) {
   const ingestKey = process.env.INGEST_API_KEY || "dev-ingest-key";
   const grouped = new Map();
 
-  const isProofReady = (ticket) =>
-    Boolean(
-      ticket?.winnerRootHash &&
-        ticket?.ownershipProof?.owner &&
-        ticket?.compressionRoot &&
-        ticket?.compressionLeaf &&
-        Number.isInteger(Number(ticket?.compressionIndex)) &&
-        Array.isArray(ticket?.ticketProof) &&
-        ticket.ticketProof.length > 0,
-    );
-
   for (const rawTicket of result.claimCandidates) {
     const ticket = {
       ...rawTicket,
-      proofStatus: isProofReady(rawTicket) ? "READY" : "PENDING_PROOF",
+      proofStatus: String(rawTicket?.proofStatus || "PENDING_PROOF").toUpperCase(),
     };
     const wallet = ticket.wallet;
     if (!wallet) continue;
@@ -131,6 +129,17 @@ async function pushClaimCandidatesToApi(result, roundId) {
       estimatedLamports: estimate.estimatedLamports,
       tickets: estimate.tickets,
     });
+  }
+}
+
+async function updateProofHydrationStatus(roundId, claimCandidates) {
+  if (!Array.isArray(claimCandidates) || claimCandidates.length === 0) return;
+  try {
+    await proofHydrationRepo.upsertMany(roundId, claimCandidates);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[scanner] proof hydration status upsert failed round=${roundId}: ${message}`);
+    await auditLog("scanner_proof_hydration_upsert_failed", { roundId, message });
   }
 }
 
@@ -204,8 +213,8 @@ async function runOnce() {
         }),
       );
     }
-    if (proofProvider && Array.isArray(claimCandidates)) {
-      claimCandidates = await Promise.all(claimCandidates.map((t) => proofProvider.enrich(t)));
+    if (Array.isArray(claimCandidates)) {
+      claimCandidates = await enrichTicketsWithProofProvider(claimCandidates, proofProvider);
     }
     result = {
       ...scan,
@@ -283,6 +292,7 @@ async function runOnce() {
       result.claimCandidates = applyTierPayouts(result.claimCandidates || [], tierPayouts);
       await auditLog("scanner_tier_payouts_loaded", { roundId, tierPayouts });
     }
+    await updateProofHydrationStatus(roundId, result.claimCandidates || []);
     await pushRootsToApi(result, roundId);
     await pushClaimCandidatesToApi(result, roundId);
   }

@@ -1,12 +1,15 @@
 import http from "node:http";
 import { deriveClaimRecordPda, deriveRoundPda, getProgramForBuilder } from "./solana/openjack.js";
-import { ROUND_STATUS } from "../../../packages/shared/src/index.js";
+import { CLAIMABILITY_REASON, ROUND_STATUS, buildClaimabilityResponse } from "../../../packages/shared/src/index.js";
+import { loadEnvLocal } from "../../../scripts/env-local.mjs";
+import { applyProfileDefaults, buildProfileFingerprint, validateProfileEnv } from "../../../scripts/profile-config.mjs";
 import {
   getActiveRound,
   getClaimEstimate,
   getRound,
   getRoundRoots,
   getRoundIngestionStatus,
+  getRoundHydrationStatus,
   getScannerStatus,
   setClaimEstimate,
   setRoundRoots,
@@ -14,8 +17,28 @@ import {
 } from "./data/store.js";
 import { prepareBuyTx, prepareClaimTx } from "./tx/prepare.js";
 
+const ENV_LOCAL = loadEnvLocal();
+
+const API_PROFILE = String(process.env.OPENJACK_PROFILE || process.env.OPENJACK_GATE_PROFILE || "dev-fast").toLowerCase();
+const API_ENV = applyProfileDefaults(API_PROFILE, process.env);
+validateProfileEnv(API_PROFILE, API_ENV, "api");
+const API_FINGERPRINT = buildProfileFingerprint(API_PROFILE, API_ENV);
+
 const PORT = Number(process.env.PORT || 8080);
 const INGEST_API_KEY = process.env.INGEST_API_KEY || "dev-ingest-key";
+
+function detectEnvSource(key, effectiveEnv) {
+  const current = String(process.env[key] || "").trim();
+  const parsedSet = new Set(ENV_LOCAL.parsedKeys || []);
+  const loadedSet = new Set(ENV_LOCAL.keys || []);
+  if (current) {
+    if (loadedSet.has(key)) return ".env.local";
+    if (parsedSet.has(key)) return "shell/env (overrides .env.local)";
+    return "shell/env";
+  }
+  if (String(effectiveEnv[key] || "").trim()) return "profile-default";
+  return "unset";
+}
 
 function send(res, statusCode, data) {
   res.writeHead(statusCode, {
@@ -61,73 +84,108 @@ function authorizeIngest(req) {
 
 async function enrichClaimEstimate(roundId, estimate) {
   const tickets = Array.isArray(estimate?.tickets) ? estimate.tickets : [];
-  if (tickets.length === 0) {
-    return {
-      ...estimate,
-      potentialLamports: 0,
-      claimableTickets: 0,
-      estimatedLamports: 0,
-      tickets: [],
-    };
-  }
 
   const { connection, program, programId } = getProgramForBuilder();
   const roundPda = deriveRoundPda(programId, roundId);
   const round = await program.account.round.fetch(roundPda);
+  const roundStatus = Number(round?.status ?? 0);
+  const roundIsFinalized = roundStatus === ROUND_STATUS.FINALIZED || roundStatus === 4;
+
+  const ingestion = await getRoundIngestionStatus(roundId).catch(() => null);
+  const ingestionReady = Boolean(ingestion?.ingestionState?.sealed);
+
+  if (tickets.length === 0) {
+    const readinessReasons = [];
+    if (!roundIsFinalized) {
+      readinessReasons.push(CLAIMABILITY_REASON.ROUND_NOT_FINALIZED);
+    }
+    if (!ingestionReady) {
+      readinessReasons.push(CLAIMABILITY_REASON.INGESTION_NOT_READY);
+    }
+    if (roundIsFinalized) {
+      readinessReasons.push(CLAIMABILITY_REASON.NOT_WINNER);
+    }
+    return buildClaimabilityResponse({
+      wallet: estimate?.wallet || "",
+      roundId,
+      roundStatus,
+      tickets: [],
+      estimatedLamports: 0,
+      potentialLamports: 0,
+      readinessReasons,
+    });
+  }
+
   const tierPayoutsRaw = round.tierPayoutPerWinner || round.tier_payout_per_winner || [];
   const tierPayouts = tierPayoutsRaw.map((v) => Number(v?.toString?.() ?? v ?? 0));
 
   const claimRecordPdas = tickets.map((t) => deriveClaimRecordPda(programId, roundId, Number(t.leafIndex)));
   const claimRecords = await connection.getMultipleAccountsInfo(claimRecordPdas, "confirmed");
+  const requestedWallet = String(estimate?.wallet || "");
 
-  const withReadiness = tickets
-    .filter((_, i) => !claimRecords[i])
-    .map((t) => {
-      const tier = Number(t?.tier ?? -1);
-      const onchainAmount = Number(tierPayouts[tier] || 0);
-      const roundStatusRaw = round?.status;
-      const roundIsFinalized =
-        roundStatusRaw === ROUND_STATUS.FINALIZED || Number(roundStatusRaw) === 4;
-      const proofReady = Boolean(
-        t?.winnerRootHash &&
-          t?.ownershipProof?.owner &&
-          t?.compressionRoot &&
-          t?.compressionLeaf &&
-          Number.isInteger(Number(t?.compressionIndex)) &&
-          Array.isArray(t?.ticketProof) &&
-          t.ticketProof.length > 0,
-      );
-      const readinessReasons = [];
-      if (!roundIsFinalized) {
-        readinessReasons.push("ROUND_NOT_FINALIZED");
-      }
-      if (!proofReady) {
-        readinessReasons.push("PENDING_PROOF");
-      }
-      if (onchainAmount <= 0) {
-        readinessReasons.push("PAYOUT_NOT_READY_OR_ZERO");
-      }
-      const claimable = readinessReasons.length === 0;
-      return {
-        ...t,
-        amount: onchainAmount,
-        proofStatus: proofReady ? "READY" : "PENDING_PROOF",
-        claimable,
-        readinessReasons,
-      };
-    });
+  const withReadiness = tickets.map((t, i) => {
+    const tier = Number(t?.tier ?? -1);
+    const onchainAmount = Number(tierPayouts[tier] || 0);
+    const claimed = Boolean(claimRecords[i]);
+    const derivedProofReady = Boolean(
+      t?.winnerRootHash &&
+        t?.ownershipProof?.owner &&
+        t?.compressionRoot &&
+        t?.compressionLeaf &&
+        Number.isInteger(Number(t?.compressionIndex)) &&
+        Array.isArray(t?.ticketProof) &&
+        t.ticketProof.length > 0,
+    );
+    const proofStatus = String(t?.proofStatus || (derivedProofReady ? "READY" : "PENDING_PROOF")).toUpperCase();
+    const proofReady = proofStatus === "READY";
+    const owner = String(t?.ownershipProof?.owner || "");
+    const ownerMatches = owner ? owner === requestedWallet : true;
+    const readinessReasons = [];
 
-  const claimableTickets = withReadiness.filter((t) => t.claimable);
-  const estimatedLamports = claimableTickets.reduce((acc, t) => acc + Number(t.amount || 0), 0);
-  const potentialLamports = withReadiness.reduce((acc, t) => acc + Number(t.amount || 0), 0);
-  return {
-    ...estimate,
-    roundStatus: round.status,
-    potentialLamports,
-    claimableTickets: claimableTickets.length,
-    estimatedLamports,
+    if (!roundIsFinalized) {
+      readinessReasons.push(CLAIMABILITY_REASON.ROUND_NOT_FINALIZED);
+    }
+    if (!ingestionReady) {
+      readinessReasons.push(CLAIMABILITY_REASON.INGESTION_NOT_READY);
+    }
+    if (claimed) {
+      readinessReasons.push(CLAIMABILITY_REASON.ALREADY_CLAIMED);
+    }
+    if (!ownerMatches) {
+      readinessReasons.push(CLAIMABILITY_REASON.OWNER_MISMATCH);
+    }
+    if (proofStatus === "FAILED") {
+      readinessReasons.push(CLAIMABILITY_REASON.PROOF_FAILED);
+    } else if (!proofReady) {
+      readinessReasons.push(CLAIMABILITY_REASON.PENDING_PROOF);
+    }
+    if (onchainAmount <= 0) {
+      readinessReasons.push(CLAIMABILITY_REASON.PAYOUT_NOT_READY_OR_ZERO);
+    }
+
+    return {
+      ...t,
+      amount: onchainAmount,
+      proofStatus,
+      readinessReasons,
+      claimable: false,
+    };
+  });
+
+  const estimatedLamports = withReadiness
+    .filter((ticket) => Array.isArray(ticket.readinessReasons) && ticket.readinessReasons.length === 0)
+    .reduce((acc, ticket) => acc + Number(ticket.amount || 0), 0);
+  const potentialLamports = withReadiness.reduce((acc, ticket) => acc + Number(ticket.amount || 0), 0);
+
+  return buildClaimabilityResponse({
+    wallet: requestedWallet,
+    roundId,
+    roundStatus,
     tickets: withReadiness,
-  };
+    estimatedLamports,
+    potentialLamports,
+    readinessReasons: [],
+  });
 }
 
 async function handle(req, res) {
@@ -172,6 +230,14 @@ async function handle(req, res) {
       return send(res, 400, { error: "roundId_required" });
     }
     return send(res, 200, await getRoundIngestionStatus(roundId));
+  }
+
+  if (req.method === "GET" && parts.length === 3 && parts[0] === "rounds" && parts[2] === "hydration") {
+    const roundId = Number(parts[1]);
+    if (!roundId) {
+      return send(res, 400, { error: "roundId_required" });
+    }
+    return send(res, 200, await getRoundHydrationStatus(roundId));
   }
 
   if (req.method === "GET" && url.pathname === "/claims/estimate") {
@@ -257,5 +323,14 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
+  console.log(
+    `[api] profile=${API_PROFILE} fingerprint=${API_FINGERPRINT.id} program_id=${String(API_ENV.OPENJACK_PROGRAM_ID || "")}`,
+  );
+  console.log(
+    `[api] env_sources program_id=${detectEnvSource("OPENJACK_PROGRAM_ID", API_ENV)} proof_mode=${detectEnvSource(
+      "OPENJACK_PROOF_MODE",
+      API_ENV,
+    )} rpc_url=${detectEnvSource("RPC_URL", API_ENV)}`,
+  );
   console.log(`openjack-api listening on :${PORT}`);
 });

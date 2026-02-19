@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { applyProfileDefaults, buildProfileFingerprint, validateProfileEnv } from "./profile-config.mjs";
+import { loadEnvLocal } from "./env-local.mjs";
 
 function parseEnvFile(filePath) {
   const raw = fs.readFileSync(filePath, "utf8");
@@ -43,8 +45,16 @@ if (!fs.existsSync(profilePath)) {
 }
 
 const profileEnv = parseEnvFile(profilePath);
+loadEnvLocal();
 // Allow caller-exported vars (like OPENJACK_PROGRAM_ID) to override profile defaults.
-const env = { ...profileEnv, ...process.env, OPENJACK_PROFILE: profileName };
+let env = { ...profileEnv, ...process.env, OPENJACK_PROFILE: profileName };
+env = applyProfileDefaults(profileName, env);
+validateProfileEnv(profileName, env, "with-profile");
+const fingerprint = buildProfileFingerprint(profileName, env);
+console.log(
+  `[profile] name=${profileName} fingerprint=${fingerprint.id} proof_mode=${fingerprint.payload.proofMode} gate_skip_auto_claim=${fingerprint.payload.gateSkipAutoClaim} program_id=${fingerprint.payload.programId}`,
+);
+env.OPENJACK_PROFILE_FINGERPRINT = fingerprint.id;
 
 const child = spawn(command, args, {
   stdio: "inherit",

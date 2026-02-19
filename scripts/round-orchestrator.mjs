@@ -1,11 +1,20 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { loadEnvLocal } from "./env-local.mjs";
+import { applyProfileDefaults, buildProfileFingerprint, validateProfileEnv } from "./profile-config.mjs";
 import {
   deriveConfigPda,
   deriveRoundPda,
   getScannerProgram,
 } from "../services/scanner/src/solana/openjack.js";
+
+const ENV_LOCAL = loadEnvLocal();
+
+const KEEPER_PROFILE = String(process.env.OPENJACK_PROFILE || process.env.OPENJACK_GATE_PROFILE || "dev-fast").toLowerCase();
+const KEEPER_ENV = applyProfileDefaults(KEEPER_PROFILE, process.env);
+validateProfileEnv(KEEPER_PROFILE, KEEPER_ENV, "keeper");
+const KEEPER_FINGERPRINT = buildProfileFingerprint(KEEPER_PROFILE, KEEPER_ENV);
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -17,6 +26,20 @@ const INTERVAL_SECS = Number(process.env.OPENJACK_KEEPER_INTERVAL_SECS || 15);
 const KEEP_MODE = (process.env.OPENJACK_KEEPER_MODE || "daemon").toLowerCase();
 const ROUND_ID_OVERRIDE = process.env.OPENJACK_KEEPER_ROUND_ID ? Number(process.env.OPENJACK_KEEPER_ROUND_ID) : null;
 const AUTO_FULFILL = process.env.OPENJACK_AUTO_FULFILL_DRAW === "true";
+const INGEST_ONLY = process.env.OPENJACK_KEEPER_INGEST_ONLY === "true";
+
+function detectEnvSource(key, effectiveEnv) {
+  const current = String(process.env[key] || "").trim();
+  const parsedSet = new Set(ENV_LOCAL.parsedKeys || []);
+  const loadedSet = new Set(ENV_LOCAL.keys || []);
+  if (current) {
+    if (loadedSet.has(key)) return ".env.local";
+    if (parsedSet.has(key)) return "shell/env (overrides .env.local)";
+    return "shell/env";
+  }
+  if (String(effectiveEnv[key] || "").trim()) return "profile-default";
+  return "unset";
+}
 
 const STATUS = {
   0: "OPEN",
@@ -96,30 +119,34 @@ async function stepRound(roundId) {
   const status = Number(round.status);
   const now = nowTs();
 
-  if (status === 0 && now >= bnToNumber(round.closeTs)) {
-    const sig = await program.methods.closeRound().accounts({ round: roundPda }).rpc();
-    console.log(`[keeper] closeRound round=${roundId} sig=${sig}`);
-  } else if (status === 1) {
-    const vrfRequest = Keypair.generate().publicKey;
-    const sig = await program.methods
-      .requestDraw({ vrfRequest })
-      .accounts({ config: configPda, round: roundPda })
-      .rpc();
-    console.log(`[keeper] requestDraw round=${roundId} sig=${sig}`);
-  } else if (status === 2 && AUTO_FULFILL) {
-    const vrfRequest = round.vrfRequest;
-    const sig = await program.methods
-      .fulfillDraw({ vrfRequest, vrfResult: vrfResultForRound(roundId) })
-      .accounts({
-        config: configPda,
-        vrfCallbackAuthority: wallet.publicKey,
-        round: roundPda,
-      })
-      .rpc();
-    console.log(`[keeper] fulfillDraw round=${roundId} sig=${sig}`);
-  } else if (status === 3 && now > bnToNumber(round.settleDeadlineTs)) {
-    const sig = await program.methods.finalizePrizes().accounts({ round: roundPda }).rpc();
-    console.log(`[keeper] finalizePrizes round=${roundId} sig=${sig}`);
+  if (!INGEST_ONLY) {
+    if (status === 0 && now >= bnToNumber(round.closeTs)) {
+      const sig = await program.methods.closeRound().accounts({ round: roundPda }).rpc();
+      console.log(`[keeper] closeRound round=${roundId} sig=${sig}`);
+    } else if (status === 1) {
+      const vrfRequest = Keypair.generate().publicKey;
+      const sig = await program.methods
+        .requestDraw({ vrfRequest })
+        .accounts({ config: configPda, round: roundPda })
+        .rpc();
+      console.log(`[keeper] requestDraw round=${roundId} sig=${sig}`);
+    } else if (status === 2 && AUTO_FULFILL) {
+      const vrfRequest = round.vrfRequest;
+      const sig = await program.methods
+        .fulfillDraw({ vrfRequest, vrfResult: vrfResultForRound(roundId) })
+        .accounts({
+          config: configPda,
+          vrfCallbackAuthority: wallet.publicKey,
+          round: roundPda,
+        })
+        .rpc();
+      console.log(`[keeper] fulfillDraw round=${roundId} sig=${sig}`);
+    } else if (status === 3 && now > bnToNumber(round.settleDeadlineTs)) {
+      const sig = await program.methods.finalizePrizes().accounts({ round: roundPda }).rpc();
+      console.log(`[keeper] finalizePrizes round=${roundId} sig=${sig}`);
+    }
+  } else {
+    console.log(`[keeper] ingest_only round=${roundId} status=${STATUS[status] || `UNKNOWN_${status}`}`);
   }
 
   const refreshed = await program.account.round.fetch(roundPda);
@@ -151,6 +178,17 @@ async function runDaemon() {
 }
 
 const runner = KEEP_MODE === "once" ? runOnce : runDaemon;
+console.log(
+  `[keeper] profile=${KEEPER_PROFILE} fingerprint=${KEEPER_FINGERPRINT.id} program_id=${String(
+    KEEPER_ENV.OPENJACK_PROGRAM_ID || "",
+  )}`,
+);
+console.log(
+  `[keeper] env_sources program_id=${detectEnvSource("OPENJACK_PROGRAM_ID", KEEPER_ENV)} proof_mode=${detectEnvSource(
+    "OPENJACK_PROOF_MODE",
+    KEEPER_ENV,
+  )} rpc_url=${detectEnvSource("RPC_URL", KEEPER_ENV)}`,
+);
 runner().catch((error) => {
   console.error(error);
   process.exit(1);

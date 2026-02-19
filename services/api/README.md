@@ -2,6 +2,10 @@
 
 Thin API with read endpoints, ingestion hooks, and tx-prepare endpoints.
 
+Claimability contract:
+- `GET /claims/estimate` returns versioned contract payload (`contractVersion`).
+- Spec: `/Users/ernesto/Documents/New project/docs/CLAIMABILITY_CONTRACT.md`.
+
 ## Run
 
 ```bash

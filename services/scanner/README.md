@@ -32,6 +32,12 @@ Environment:
 - `OPENJACK_PROOF_MODE=off|file|das` (default `off`)
 - `OPENJACK_PROOF_MAP_PATH` (required when `OPENJACK_PROOF_MODE=file`)
 - `OPENJACK_DAS_RPC_URL` (optional override for DAS RPC endpoint)
+- `OPENJACK_DAS_RPC_FALLBACK_URL` (optional fallback DAS endpoint)
+- `OPENJACK_PROOF_MAX_ATTEMPTS` (default `3`)
+- `OPENJACK_PROOF_BACKOFF_BASE_MS` (default `400`)
+- `OPENJACK_PROOF_BACKOFF_MAX_MS` (default `5000`)
+- `OPENJACK_PROOF_JITTER_MS` (default `200`)
+- `OPENJACK_PROOF_CONCURRENCY` (default `4`)
 - `OPENJACK_ASSET_RESOLVER_MODE=off|file|postgres` (default `off`)
 - `OPENJACK_ASSET_MAP_PATH` (required when `OPENJACK_ASSET_RESOLVER_MODE=file`)
 - `OPENJACK_ASSET_DATABASE_URL` (optional override DB URL for resolver postgres mode)
@@ -101,6 +107,18 @@ Publish reliability:
 
 - successful `publish_winner_root` transactions are polled for on-chain confirmation.
 - failures are queued in `scanner_publish_dead_letters` and retried in subsequent runs.
+
+Proof hydration reliability:
+
+- proof enrichment retries are bounded with exponential backoff + jitter.
+- per-ticket hydration state is persisted in `scanner_proof_hydration` (`pending|hydrated|failed`, attempts, last error).
+- scanner never drops winner visibility when proofs fail; tickets remain visible with proof status metadata.
+- DAS fallback endpoint is used only for retryable transport/rate-limit/provider errors (not deterministic "asset not found"-style errors).
+
+Ops helpers (workspace root):
+
+- `npm run hydrate:rehydrate-failed-round -- <roundId>`
+- `npm run hydrate:cleanup-status` (`OPENJACK_PROOF_RETENTION_DAYS`, `OPENJACK_PROOF_CLEANUP_DRY_RUN=true|false`)
 
 ## Postgres schema
 

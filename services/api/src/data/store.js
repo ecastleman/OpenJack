@@ -61,3 +61,7 @@ export async function getScannerStatus(roundId) {
 export async function getRoundIngestionStatus(roundId) {
   return store.getRoundIngestionStatus(roundId);
 }
+
+export async function getRoundHydrationStatus(roundId) {
+  return store.getRoundHydrationStatus(roundId);
+}

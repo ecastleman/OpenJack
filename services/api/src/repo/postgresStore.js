@@ -79,6 +79,25 @@ export class PostgresStore {
         PRIMARY KEY (round_id, wallet)
       );
 
+      CREATE TABLE IF NOT EXISTS scanner_proof_hydration (
+        round_id BIGINT NOT NULL,
+        leaf_index INTEGER NOT NULL,
+        wallet TEXT,
+        asset_id TEXT,
+        provider TEXT,
+        status TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        first_attempt_at TIMESTAMPTZ,
+        last_attempt_at TIMESTAMPTZ,
+        hydrated_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (round_id, leaf_index)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_scanner_proof_hydration_round_status
+        ON scanner_proof_hydration(round_id, status);
+
       ALTER TABLE rounds
         ADD COLUMN IF NOT EXISTS winners_pool_balance BIGINT NOT NULL DEFAULT 0;
 
@@ -306,8 +325,15 @@ export class PostgresStore {
       roundId: Number(roundId),
       ingestionState: null,
       snapshot: null,
+      hydration: null,
       warnings: [],
     };
+
+    try {
+      result.hydration = await this.getRoundHydrationStatus(roundId);
+    } catch (error) {
+      result.warnings.push(`scanner_proof_hydration_unavailable: ${error.message}`);
+    }
 
     try {
       const { rows } = await this.pool.query(
@@ -386,5 +412,111 @@ export class PostgresStore {
     }
 
     return result;
+  }
+
+  async getRoundHydrationStatus(roundId) {
+    await this.init();
+    const output = {
+      roundId: Number(roundId),
+      counts: {
+        pendingProof: 0,
+        hydrated: 0,
+        failed: 0,
+        total: 0,
+      },
+      provider: null,
+      lastHydrationAt: null,
+      lastError: null,
+      oldestPendingAgeMs: null,
+      sampleFailures: [],
+    };
+
+    const countsRes = await this.pool.query(
+      `
+      SELECT
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
+        COALESCE(SUM(CASE WHEN status = 'hydrated' THEN 1 ELSE 0 END), 0)::int AS hydrated_count,
+        COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0)::int AS failed_count,
+        COUNT(*)::int AS total_count
+      FROM scanner_proof_hydration
+      WHERE round_id = $1
+      `,
+      [Number(roundId)],
+    );
+    const c = countsRes.rows[0] || {};
+    output.counts = {
+      pendingProof: Number(c.pending_count || 0),
+      hydrated: Number(c.hydrated_count || 0),
+      failed: Number(c.failed_count || 0),
+      total: Number(c.total_count || 0),
+    };
+
+    const latestRes = await this.pool.query(
+      `
+      SELECT provider
+      FROM scanner_proof_hydration
+      WHERE round_id = $1
+      ORDER BY updated_at DESC
+      LIMIT 1
+      `,
+      [Number(roundId)],
+    );
+    if (latestRes.rows[0]) {
+      output.provider = latestRes.rows[0].provider || null;
+    }
+
+    const hydratedRes = await this.pool.query(
+      `
+      SELECT MAX(hydrated_at) AS last_hydrated_at
+      FROM scanner_proof_hydration
+      WHERE round_id = $1
+      `,
+      [Number(roundId)],
+    );
+    output.lastHydrationAt = hydratedRes.rows[0]?.last_hydrated_at || null;
+
+    const errorRes = await this.pool.query(
+      `
+      SELECT last_error
+      FROM scanner_proof_hydration
+      WHERE round_id = $1 AND last_error IS NOT NULL
+      ORDER BY updated_at DESC
+      LIMIT 1
+      `,
+      [Number(roundId)],
+    );
+    if (errorRes.rows[0]) {
+      output.lastError = errorRes.rows[0].last_error || null;
+    }
+
+    const pendingAgeRes = await this.pool.query(
+      `
+      SELECT EXTRACT(EPOCH FROM (now() - MIN(first_attempt_at))) * 1000 AS oldest_pending_age_ms
+      FROM scanner_proof_hydration
+      WHERE round_id = $1 AND status = 'pending' AND first_attempt_at IS NOT NULL
+      `,
+      [Number(roundId)],
+    );
+    const age = Number(pendingAgeRes.rows[0]?.oldest_pending_age_ms || 0);
+    output.oldestPendingAgeMs = age > 0 ? Math.round(age) : null;
+
+    const failuresRes = await this.pool.query(
+      `
+      SELECT leaf_index, asset_id, last_error, attempt_count
+      FROM scanner_proof_hydration
+      WHERE round_id = $1 AND status = 'failed'
+      ORDER BY updated_at DESC
+      LIMIT 5
+      `,
+      [Number(roundId)],
+    );
+    output.sampleFailures = failuresRes.rows.map((row) => ({
+      leafIndex: Number(row.leaf_index || 0),
+      assetId: row.asset_id || null,
+      lastError: row.last_error || null,
+      attemptCount: Number(row.attempt_count || 0),
+    }));
+
+    return output;
   }
 }

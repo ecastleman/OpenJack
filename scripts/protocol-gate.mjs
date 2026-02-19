@@ -4,6 +4,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { classifyTier } from "../packages/shared/src/index.js";
+import { applyProfileDefaults, buildProfileFingerprint, validateProfileEnv } from "./profile-config.mjs";
+import { loadEnvLocal } from "./env-local.mjs";
+
+loadEnvLocal();
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -21,6 +25,9 @@ if (cliArgs.includes("--help") || cliArgs.includes("-h")) {
 }
 
 const PROFILE = (process.env.OPENJACK_GATE_PROFILE || cliArgs[0] || "dev-fast").toLowerCase();
+const EFFECTIVE_ENV = applyProfileDefaults(PROFILE, process.env);
+validateProfileEnv(PROFILE, EFFECTIVE_ENV, "protocol-gate");
+const PROFILE_FINGERPRINT = buildProfileFingerprint(PROFILE, EFFECTIVE_ENV);
 const CYCLES = Number(process.env.OPENJACK_GATE_CYCLES || cliArgs[1] || 1);
 const CLOSE_IN_SECS = Number(process.env.OPENJACK_GATE_CLOSE_IN_SECS || 90);
 const OPEN_OFFSET_SECS = Number(process.env.OPENJACK_GATE_OPEN_OFFSET_SECS || -10);
@@ -29,15 +36,17 @@ const defaultFinalizedWaitMs = PROFILE === "qa-fast" ? 5 * 60 * 1000 : 12 * 60 *
 const WAIT_SETTLING_MS = Number(process.env.OPENJACK_GATE_WAIT_SETTLING_MS || defaultSettlingWaitMs);
 const WAIT_FINALIZED_MS = Number(process.env.OPENJACK_GATE_WAIT_FINALIZED_MS || defaultFinalizedWaitMs);
 const POLL_MS = Number(process.env.OPENJACK_GATE_POLL_MS || 5000);
+const KEEPER_TRANSIENT_MAX_WAIT_MS = Number(process.env.OPENJACK_GATE_KEEPER_TRANSIENT_MAX_WAIT_MS || 30_000);
+const INGEST_PROBE_MIN_INTERVAL_MS = Number(process.env.OPENJACK_GATE_INGEST_PROBE_MIN_INTERVAL_MS || 10000);
 const SEND_TX_MIN_INTERVAL_MS = Number(process.env.OPENJACK_GATE_SEND_TX_MIN_INTERVAL_MS || 1200);
 const BUILD_ASSET_MAP = process.env.OPENJACK_GATE_BUILD_ASSET_MAP === "true";
-const SKIP_AUTO_CLAIM = process.env.OPENJACK_GATE_SKIP_AUTO_CLAIM === "true";
+const SKIP_AUTO_CLAIM = String(EFFECTIVE_ENV.OPENJACK_GATE_SKIP_AUTO_CLAIM || "false").toLowerCase() === "true";
 const REPORT_DIR = process.env.OPENJACK_GATE_REPORT_DIR || path.resolve(process.cwd(), "reports/protocol-gate");
 const CONTINUE_ON_FAIL = process.env.OPENJACK_GATE_CONTINUE_ON_FAIL === "true";
 let lastTxSentAt = 0;
+const lastIngestProbeAtByRound = new Map();
 const PROFILE_PROGRAM_ID =
-  process.env.OPENJACK_PROGRAM_ID ||
-  (PROFILE === "qa-fast" ? "Cnraeedx3R74G42eLHBz1rTbSwCQt62C2RC7iaejWSW3" : "");
+  EFFECTIVE_ENV.OPENJACK_PROGRAM_ID;
 
 function usage() {
   console.error("Usage: node scripts/protocol-gate.mjs [profile=dev-fast|qa-fast|prod-like] [cycles=1]");
@@ -435,15 +444,51 @@ function createStatusPhaseLogger({ cycle, roundId, phase }) {
   };
 }
 
-function kickKeeper(roundId, programId = PROFILE_PROGRAM_ID) {
+function kickKeeper(roundId, programId = PROFILE_PROGRAM_ID, { ingestOnly = false } = {}) {
   return runNpm(["run", "-s", "keeper"], {
     OPENJACK_KEEPER_MODE: "once",
     OPENJACK_KEEPER_ROUND_ID: String(roundId),
     OPENJACK_AUTO_FULFILL_DRAW: process.env.OPENJACK_AUTO_FULFILL_DRAW || "true",
+    OPENJACK_KEEPER_INGEST_ONLY: ingestOnly ? "true" : "false",
     OPENJACK_PROGRAM_ID: programId,
     OPENJACK_API_BASE: API_BASE,
     INGEST_API_KEY: process.env.INGEST_API_KEY || "dev-ingest-key",
   });
+}
+
+function normalizeStatus(status) {
+  return String(status || "UNKNOWN").toUpperCase();
+}
+
+function computeKeeperActionForPhase(phase, status) {
+  const s = normalizeStatus(status);
+  const autoFulfill = String(process.env.OPENJACK_AUTO_FULFILL_DRAW || "true").toLowerCase() === "true";
+  if (phase === "to_settling") {
+    if (s === "OPEN") return "close_round_if_due";
+    if (s === "CLOSED") return "request_draw";
+    if (s === "DRAWING") return autoFulfill ? "fulfill_draw" : "wait_drawing";
+    if (s === "SETTLING") return "none";
+    if (s === "FINALIZED") return "none";
+    if (s === "NOT_INGESTED") return "ingest_probe";
+    return null;
+  }
+  if (phase === "to_finalized") {
+    if (s === "SETTLING") return "finalize_prizes_if_due";
+    if (s === "FINALIZED") return "none";
+    if (s === "NOT_INGESTED") return "ingest_probe";
+    return null;
+  }
+  return null;
+}
+
+function shouldExecuteKeeperAction(action) {
+  return (
+    action === "close_round_if_due" ||
+    action === "request_draw" ||
+    action === "fulfill_draw" ||
+    action === "finalize_prizes_if_due" ||
+    action === "ingest_probe"
+  );
 }
 
 function isTransientKeeperError(message = "") {
@@ -454,14 +499,141 @@ function isTransientKeeperError(message = "") {
     m.includes("SettlementWindowOpen") ||
     m.includes("settlement window is still open") ||
     m.includes("Invalid round state for this instruction") ||
-    m.includes("Account does not exist or has no data")
+    m.includes("Account does not exist or has no data") ||
+    // Intermittent devnet/provider flake observed during keeper finalize RPC.
+    m.includes("Unknown action 'undefined'")
   );
 }
 
-function kickKeeperOrThrow(roundId, contextLabel, { allowTransient = false, programId = PROFILE_PROGRAM_ID } = {}) {
-  const result = kickKeeper(roundId, programId);
+async function getRoundSnapshotSafe(roundId) {
+  try {
+    const round = (await getJson(`/rounds/${roundId}`))?.round;
+    return {
+      status: normalizeStatus(round?.status || "UNKNOWN"),
+      drawTs: Number(round?.drawTs || 0),
+      winningBonus: Number(round?.winningBonus || 0),
+      settleDeadlineTs: Number(round?.settleDeadlineTs || 0),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("404")) {
+      return { status: "NOT_INGESTED", drawTs: 0, winningBonus: 0, settleDeadlineTs: 0 };
+    }
+    return { status: "UNKNOWN", drawTs: 0, winningBonus: 0, settleDeadlineTs: 0 };
+  }
+}
+
+function hasActionProgressed({ action, initialSnapshot, currentSnapshot }) {
+  const from = normalizeStatus(initialSnapshot?.status);
+  const now = normalizeStatus(currentSnapshot?.status);
+  if (action === "request_draw") {
+    return (
+      (from === "CLOSED" && (now === "DRAWING" || now === "SETTLING" || now === "FINALIZED")) ||
+      Number(currentSnapshot?.drawTs || 0) > Number(initialSnapshot?.drawTs || 0)
+    );
+  }
+  if (action === "close_round_if_due") {
+    return from === "OPEN" && (now === "CLOSED" || now === "DRAWING" || now === "SETTLING" || now === "FINALIZED");
+  }
+  if (action === "fulfill_draw") {
+    return (
+      (from === "DRAWING" && (now === "SETTLING" || now === "FINALIZED")) ||
+      Number(currentSnapshot?.winningBonus || 0) !== 0
+    );
+  }
+  if (action === "finalize_prizes_if_due") {
+    return (from === "SETTLING" && now === "FINALIZED") || now === "FINALIZED";
+  }
+  return false;
+}
+
+async function confirmOrRetryCustom6000({
+  roundId,
+  action,
+  initialSnapshot,
+  retries = 3,
+  retryDelayMs = 1200,
+  maxWaitMs = 30_000,
+  programId = PROFILE_PROGRAM_ID,
+  ingestOnly = false,
+}) {
+  const startedAtMs = Date.now();
+  let lastSnapshot = await getRoundSnapshotSafe(roundId);
+  if (hasActionProgressed({ action, initialSnapshot, currentSnapshot: lastSnapshot })) {
+    return { confirmedTransient: true, lastStatus: lastSnapshot.status, retriesUsed: 0, elapsedMs: Date.now() - startedAtMs };
+  }
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    if (Date.now() - startedAtMs >= maxWaitMs) {
+      break;
+    }
+    await sleep(retryDelayMs);
+    const retry = kickKeeper(roundId, programId, { ingestOnly });
+    if (retry.ok) {
+      lastSnapshot = await getRoundSnapshotSafe(roundId);
+      return {
+        confirmedTransient: true,
+        lastStatus: lastSnapshot.status,
+        retriesUsed: attempt,
+        elapsedMs: Date.now() - startedAtMs,
+      };
+    }
+    const retryOutput = String(retry.stderr || retry.stdout || "");
+    lastSnapshot = await getRoundSnapshotSafe(roundId);
+    if (hasActionProgressed({ action, initialSnapshot, currentSnapshot: lastSnapshot })) {
+      return {
+        confirmedTransient: true,
+        lastStatus: lastSnapshot.status,
+        retriesUsed: attempt,
+        elapsedMs: Date.now() - startedAtMs,
+      };
+    }
+    if (!retryOutput.includes("Custom: 6000")) {
+      return {
+        confirmedTransient: false,
+        lastStatus: lastSnapshot.status,
+        retriesUsed: attempt,
+        lastOutput: retryOutput,
+        elapsedMs: Date.now() - startedAtMs,
+      };
+    }
+  }
+  return {
+    confirmedTransient: false,
+    lastStatus: lastSnapshot.status,
+    retriesUsed: retries,
+    elapsedMs: Date.now() - startedAtMs,
+  };
+}
+
+async function kickKeeperOrThrow(
+  roundId,
+  contextLabel,
+  { allowTransient = false, programId = PROFILE_PROGRAM_ID, ingestOnly = false, action = "", status = "" } = {},
+) {
+  const result = kickKeeper(roundId, programId, { ingestOnly });
   if (!result.ok) {
     const output = result.stderr || result.stdout || "unknown keeper error";
+    const hasCustom6000 = String(output).includes("Custom: 6000");
+    if (allowTransient && hasCustom6000) {
+      const initialSnapshot = await getRoundSnapshotSafe(roundId);
+      const confirmation = await confirmOrRetryCustom6000({
+        roundId,
+        action,
+        initialSnapshot,
+        maxWaitMs: KEEPER_TRANSIENT_MAX_WAIT_MS,
+        programId,
+        ingestOnly,
+      });
+      if (confirmation.confirmedTransient) {
+        console.log(
+          `[gate] keeper_transient_confirmed round=${roundId} action=${action} initial=${normalizeStatus(status)} current=${confirmation.lastStatus} retries=${confirmation.retriesUsed} elapsed_ms=${confirmation.elapsedMs}`,
+        );
+        return result;
+      }
+      throw new Error(
+        `keeper_custom_6000_not_progressing (${contextLabel}) round=${roundId} action=${action} initial_status=${normalizeStatus(status)} last_status=${confirmation.lastStatus} retries=${confirmation.retriesUsed} elapsed_ms=${confirmation.elapsedMs}`,
+      );
+    }
     if (allowTransient && isTransientKeeperError(output)) {
       return result;
     }
@@ -470,6 +642,61 @@ function kickKeeperOrThrow(roundId, contextLabel, { allowTransient = false, prog
     );
   }
   return result;
+}
+
+async function nudgeKeeperForPhase(
+  roundId,
+  { phase, status, allowTransient = true, programId = PROFILE_PROGRAM_ID, onDiagnostic = null },
+) {
+  const normalizedStatus = normalizeStatus(status);
+  const computedAction = computeKeeperActionForPhase(phase, normalizedStatus);
+  console.log(
+    `[gate] keeper_nudge round=${roundId} phase=${phase} status=${normalizedStatus} action=${computedAction ?? "UNMAPPED"}`,
+  );
+  if (!computedAction) {
+    if (onDiagnostic) {
+      onDiagnostic({
+        type: "keeper_action_unmapped",
+        roundId,
+        phase,
+        status: normalizedStatus,
+        computedAction: null,
+        ts: new Date().toISOString(),
+      });
+    }
+    return { skipped: true, reason: "keeper_action_unmapped" };
+  }
+  if (!shouldExecuteKeeperAction(computedAction)) {
+    return { skipped: true, reason: "no_keeper_action_required", action: computedAction };
+  }
+  if (computedAction === "ingest_probe") {
+    const now = Date.now();
+    const last = Number(lastIngestProbeAtByRound.get(String(roundId)) || 0);
+    const elapsed = now - last;
+    if (elapsed < INGEST_PROBE_MIN_INTERVAL_MS) {
+      if (onDiagnostic) {
+        onDiagnostic({
+          type: "keeper_ingest_probe_rate_limited",
+          roundId,
+          phase,
+          status: normalizedStatus,
+          computedAction,
+          minIntervalMs: INGEST_PROBE_MIN_INTERVAL_MS,
+          elapsedMs: elapsed,
+          ts: new Date().toISOString(),
+        });
+      }
+      return { skipped: true, reason: "keeper_ingest_probe_rate_limited", action: computedAction, elapsedMs: elapsed };
+    }
+    lastIngestProbeAtByRound.set(String(roundId), now);
+  }
+  return kickKeeperOrThrow(roundId, `${phase} status=${normalizedStatus} action=${computedAction}`, {
+    allowTransient,
+    programId,
+    ingestOnly: computedAction === "ingest_probe",
+    action: computedAction,
+    status: normalizedStatus,
+  });
 }
 
 function runScannerOnce(roundId, buySignatures, reportSlug, assetMapPath = null, { claimsOnly = false } = {}) {
@@ -492,7 +719,7 @@ function runScannerOnce(roundId, buySignatures, reportSlug, assetMapPath = null,
     OPENJACK_API_BASE: API_BASE,
     INGEST_API_KEY: process.env.INGEST_API_KEY || "dev-ingest-key",
     RPC_URL: process.env.RPC_URL || RPC_URL,
-    OPENJACK_PROOF_MODE: process.env.OPENJACK_PROOF_MODE || "das",
+    OPENJACK_PROOF_MODE: EFFECTIVE_ENV.OPENJACK_PROOF_MODE || "das",
     OPENJACK_DAS_RPC_URL: dasRpcUrl,
     OPENJACK_FETCH_TIER_PAYOUTS: "true",
     OPENJACK_PROGRAM_ID: PROFILE_PROGRAM_ID,
@@ -651,6 +878,11 @@ async function claimAll(roundId, buyer) {
 }
 
 async function runCycle(index, buyer) {
+  const keeperDiagnostics = [];
+  const recordKeeperDiagnostic = (event) => {
+    keeperDiagnostics.push(event);
+  };
+  try {
   const cycleNumber = index + 1;
   const reportSlug = `cycle-${index + 1}-${Date.now()}`;
   const profileProgramId = PROFILE_PROGRAM_ID;
@@ -686,14 +918,26 @@ async function runCycle(index, buyer) {
 
   // Do not block the cycle on API ingest visibility for OPEN.
   // Buy preparation reads on-chain state directly, so ingest lag should not fail the cycle.
-  kickKeeperOrThrow(roundId, "post_create", { allowTransient: true, programId: profileProgramId });
+  await nudgeKeeperForPhase(roundId, {
+    phase: "to_settling",
+    status: "NOT_INGESTED",
+    allowTransient: true,
+    programId: profileProgramId,
+    onDiagnostic: recordKeeperDiagnostic,
+  });
   try {
     const visible = await waitForStatus(
       roundId,
       ["OPEN", "CLOSED", "DRAWING", "SETTLING", "FINALIZED"],
       20_000,
       async () => {
-        kickKeeperOrThrow(roundId, "wait_visible", { allowTransient: true, programId: profileProgramId });
+        await nudgeKeeperForPhase(roundId, {
+          phase: "to_settling",
+          status: "NOT_INGESTED",
+          allowTransient: true,
+          programId: profileProgramId,
+          onDiagnostic: recordKeeperDiagnostic,
+        });
       },
     );
     console.log(`[gate] cycle=${cycleNumber} round=${roundId} status=${visible.status}`);
@@ -754,7 +998,13 @@ async function runCycle(index, buyer) {
   const logToSettling = createStatusPhaseLogger({ cycle: cycleNumber, roundId, phase: "to_settling" });
   await waitForStatus(roundId, ["SETTLING"], WAIT_SETTLING_MS, async (status) => {
     logToSettling(status);
-    kickKeeperOrThrow(roundId, `wait_settling current=${status}`, { allowTransient: true, programId: profileProgramId });
+    await nudgeKeeperForPhase(roundId, {
+      phase: "to_settling",
+      status,
+      allowTransient: true,
+      programId: profileProgramId,
+      onDiagnostic: recordKeeperDiagnostic,
+    });
   });
   console.log(`[gate] cycle=${cycleNumber} round=${roundId} phase=to_settling status=SETTLING (reached)`);
 
@@ -766,7 +1016,13 @@ async function runCycle(index, buyer) {
   const logToFinalized = createStatusPhaseLogger({ cycle: cycleNumber, roundId, phase: "to_finalized" });
   await waitForStatus(roundId, ["FINALIZED"], WAIT_FINALIZED_MS, async (status) => {
     logToFinalized(status);
-    kickKeeperOrThrow(roundId, `wait_finalized current=${status}`, { allowTransient: true, programId: profileProgramId });
+    await nudgeKeeperForPhase(roundId, {
+      phase: "to_finalized",
+      status,
+      allowTransient: true,
+      programId: profileProgramId,
+      onDiagnostic: recordKeeperDiagnostic,
+    });
   });
   console.log(`[gate] cycle=${cycleNumber} round=${roundId} phase=to_finalized status=FINALIZED (reached)`);
 
@@ -796,6 +1052,7 @@ async function runCycle(index, buyer) {
       claimTicketsAfter: Array.isArray(claimable.tickets) ? claimable.tickets.length : 0,
       autoClaimSkipped: true,
       claimReadiness: summarizeEstimate(claimable),
+      keeperDiagnostics,
     };
   }
   const claims = await claimAll(roundId, buyer);
@@ -811,7 +1068,14 @@ async function runCycle(index, buyer) {
     claimEstimatedAfter: Number(claims.after.estimatedLamports || 0),
     claimTicketsAfter: Array.isArray(claims.after.tickets) ? claims.after.tickets.length : 0,
     claimReadiness: summarizeEstimate(claimable),
+    keeperDiagnostics,
   };
+  } catch (error) {
+    if (error && typeof error === "object") {
+      error.keeperDiagnostics = keeperDiagnostics;
+    }
+    throw error;
+  }
 }
 
 async function main() {
@@ -819,10 +1083,19 @@ async function main() {
   if (PROFILE === "qa-fast" && !PROFILE_PROGRAM_ID) {
     throw new Error("qa-fast requires OPENJACK_PROGRAM_ID to be set");
   }
+  console.log(
+    `[gate] profile=${PROFILE} fingerprint=${PROFILE_FINGERPRINT.id} proof_mode=${String(
+      EFFECTIVE_ENV.OPENJACK_PROOF_MODE || "",
+    )} skip_auto_claim=${SKIP_AUTO_CLAIM} program_id=${PROFILE_PROGRAM_ID}`,
+  );
+  if (!SKIP_AUTO_CLAIM) {
+    console.log("[gate] auto-claim enabled: claim estimates will drop to 0 after execution");
+  }
   const buyer = readKeypair(BUYER_KEYPAIR_PATH);
   await getJson("/health");
   const report = {
     generatedAt: new Date().toISOString(),
+    stackSessionId: process.env.OPENJACK_STACK_SESSION_ID || null,
     profile: PROFILE,
     cycles: CYCLES,
     rpcUrl: RPC_URL,
@@ -833,6 +1106,8 @@ async function main() {
     ok: true,
     continueOnFail: CONTINUE_ON_FAIL,
     skipAutoClaim: SKIP_AUTO_CLAIM,
+    profileFingerprint: PROFILE_FINGERPRINT.id,
+    profileFingerprintPayload: PROFILE_FINGERPRINT.payload,
   };
 
   for (let i = 0; i < CYCLES; i += 1) {
@@ -846,6 +1121,7 @@ async function main() {
         ok: false,
         cycle: i + 1,
         error: error instanceof Error ? error.message : String(error),
+        keeperDiagnostics: Array.isArray(error?.keeperDiagnostics) ? error.keeperDiagnostics : [],
       });
       console.error(`[gate] cycle=${i + 1} FAIL ${error instanceof Error ? error.message : String(error)}`);
       if (!CONTINUE_ON_FAIL) break;

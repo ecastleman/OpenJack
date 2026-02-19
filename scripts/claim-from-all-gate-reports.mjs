@@ -1,5 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { loadEnvLocal } from "./env-local.mjs";
+
+loadEnvLocal();
 
 const ROOT = process.cwd();
 const REPORT_DIR = path.resolve(ROOT, "reports/protocol-gate");

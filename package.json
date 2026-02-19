@@ -18,7 +18,16 @@
     "gate:protocol": "node scripts/protocol-gate.mjs",
     "claim:gate-report": "node scripts/claim-from-gate-report.mjs",
     "claim:gate-all": "node scripts/claim-from-all-gate-reports.mjs",
+    "claim:gate-latest": "node scripts/claim-from-gate-report.mjs",
+    "gate:post-report": "node scripts/post-gate-report.mjs",
+    "gate:post-latest": "node scripts/post-gate-report.mjs",
     "hydrate:gate-all": "node scripts/hydrate-from-all-gate-reports.mjs",
+    "hydrate:gate-pending": "node scripts/hydrate-from-pending-gate-reports.mjs",
+    "hydrate:rehydrate-failed-round": "node scripts/rehydrate-failed-round.mjs",
+    "hydrate:cleanup-status": "node scripts/cleanup-proof-hydration.mjs",
+    "verify:claimed-round": "node scripts/verify-claimed-round.mjs",
+    "run:clean-cycle": "bash scripts/run-clean-cycle.sh",
+    "gate:with-stack": "bash scripts/run-gate-with-stack.sh",
     "rc:checklist": "node scripts/rc-checklist.mjs",
     "keeper": "node scripts/round-orchestrator.mjs",
     "scanner:set-official": "node scripts/set-official-scanner.mjs",
@@ -47,6 +56,10 @@
     "deploy:prod-like": "bash scripts/deploy-prod-like.sh",
     "build:program:prod-like": "anchor build",
     "build:program:dev-fast": "anchor build -- --features dev-fast-timers,dev-fast-program-id",
-    "build:program:qa-fast": "anchor build -- --features qa-fast-timers,dev-fast-program-id"
+    "build:program:qa-fast": "anchor build -- --features qa-fast-timers,dev-fast-program-id",
+    "test:contract": "node --test tests/contract/*.test.mjs"
+  },
+  "dependencies": {
+    "bs58": "^6.0.0"
   }
 }

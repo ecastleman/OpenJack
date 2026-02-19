@@ -41,3 +41,22 @@ CREATE TABLE IF NOT EXISTS claim_estimates (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (round_id, wallet)
 );
+
+CREATE TABLE IF NOT EXISTS scanner_proof_hydration (
+  round_id BIGINT NOT NULL,
+  leaf_index INTEGER NOT NULL,
+  wallet TEXT,
+  asset_id TEXT,
+  provider TEXT,
+  status TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  first_attempt_at TIMESTAMPTZ,
+  last_attempt_at TIMESTAMPTZ,
+  hydrated_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (round_id, leaf_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scanner_proof_hydration_round_status
+  ON scanner_proof_hydration(round_id, status);

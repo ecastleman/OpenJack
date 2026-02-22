@@ -8,17 +8,34 @@ pub enum RoundStatus {
     Drawing = 2,
     Settling = 3,
     Finalized = 4,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    ClosedPendingFreeze = 5,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    ClosedFrozen = 6,
 }
 
 impl RoundStatus {
     pub fn can_transition_to(self, next: RoundStatus) -> bool {
-        matches!(
+        let base = matches!(
             (self, next),
             (RoundStatus::Open, RoundStatus::Closed)
                 | (RoundStatus::Closed, RoundStatus::Drawing)
                 | (RoundStatus::Drawing, RoundStatus::Settling)
                 | (RoundStatus::Settling, RoundStatus::Finalized)
-        )
+        );
+
+        #[cfg(feature = "canonical-freeze-prototype")]
+        let prototype = matches!(
+            (self, next),
+            (RoundStatus::Closed, RoundStatus::ClosedPendingFreeze)
+                | (RoundStatus::ClosedPendingFreeze, RoundStatus::ClosedFrozen)
+                | (RoundStatus::ClosedFrozen, RoundStatus::Drawing)
+        );
+
+        #[cfg(not(feature = "canonical-freeze-prototype"))]
+        let prototype = false;
+
+        base || prototype
     }
 }
 
@@ -66,6 +83,40 @@ pub struct Round {
     pub scanner_commitment_hash: [u8; 32],
     pub scanner_observed_ticket_count: u32,
     pub finalized_ts: i64,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub freeze_committed: bool,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub ticket_set_root: [u8; 32],
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub ticket_count_frozen: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub leaf_start_index: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub leaf_end_index: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub freeze_committed_ts: i64,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub freeze_attempts: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_progress_index: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_finalized: bool,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_last_batch_set: bool,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_last_batch_start: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_last_batch_len: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_last_batch_hash: [u8; 32],
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_batches_accepted: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_batches_noop_replay: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_last_result_code: u16,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_last_result_count: u32,
     pub bump: u8,
 }
 

@@ -20,7 +20,9 @@ custom-heap = []
 custom-panic = []
 dev-fast-timers = []
 dev-fast-program-id = []
+prototype-program-id = []
 qa-fast-timers = []
+canonical-freeze-prototype = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }

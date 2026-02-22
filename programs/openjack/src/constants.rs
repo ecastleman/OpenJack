@@ -22,3 +22,5 @@ pub const SETTLEMENT_WINDOW_SECS: i64 = 180;
 #[cfg(all(not(feature = "qa-fast-timers"), not(feature = "dev-fast-timers")))]
 pub const SETTLEMENT_WINDOW_SECS: i64 = 3600;
 pub const WINNERS_CLAIM_WINDOW_SECS: i64 = 30 * 24 * 60 * 60;
+#[cfg(feature = "canonical-freeze-prototype")]
+pub const PROTOTYPE_COUNT_BATCH_MAX_LEN: u32 = 6;

@@ -66,3 +66,17 @@ pub struct SweptToUnclaimed {
     pub amount: u64,
     pub ts: i64,
 }
+
+#[cfg(feature = "canonical-freeze-prototype")]
+#[event]
+pub struct CountBatchObserved {
+    pub round_id: u64,
+    pub processed: u32,
+    pub total: u32,
+    pub remaining: u32,
+    pub last_result_code: u16,
+    pub last_result_count: u32,
+    pub accepted_batches: u32,
+    pub noop_replay_batches: u32,
+    pub ts: i64,
+}

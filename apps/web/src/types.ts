@@ -20,9 +20,17 @@ export type RootRow = {
 };
 
 export type ClaimEstimate = {
+  contractVersion: string;
   wallet: string;
   roundId: number;
+  roundStatus?: number;
+  winnerTickets: number;
+  claimableTickets: number;
+  nonClaimableWinnerTickets: number;
   estimatedLamports: number;
+  potentialLamports: number;
+  readinessReasons: string[];
+  nonClaimableReasonCounts: Record<string, number>;
   tickets: ClaimTicket[];
 };
 
@@ -30,6 +38,9 @@ export type ClaimTicket = {
   leafIndex: number;
   tier: number;
   amount: number;
+  claimable?: boolean;
+  proofStatus?: string | null;
+  readinessReasons?: string[];
   assetId?: string | null;
   winnerRootHash?: string | null;
   winnerRootProof?: string[];

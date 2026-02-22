@@ -2,9 +2,14 @@
 
 use anchor_lang::prelude::*;
 
-#[cfg(feature = "dev-fast-program-id")]
+#[cfg(feature = "prototype-program-id")]
+declare_id!("BtTuYHeZ7r9KkWUrH4EgrkY29oPqfrLuhWWtWzrJCp8G");
+#[cfg(all(not(feature = "prototype-program-id"), feature = "dev-fast-program-id"))]
 declare_id!("Cnraeedx3R74G42eLHBz1rTbSwCQt62C2RC7iaejWSW3");
-#[cfg(not(feature = "dev-fast-program-id"))]
+#[cfg(all(
+    not(feature = "prototype-program-id"),
+    not(feature = "dev-fast-program-id")
+))]
 declare_id!("2AWsuApMg1gr4e9Ybc5Uji5cJnjYDjYaqQzjn6s6draX");
 
 pub mod constants;
@@ -63,6 +68,29 @@ pub mod openjack {
 
     pub fn close_round(ctx: Context<CloseRound>) -> Result<()> {
         round::close_round(ctx)
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub fn begin_freeze(ctx: Context<BeginFreeze>) -> Result<()> {
+        round::begin_freeze(ctx)
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub fn freeze_ticket_set(ctx: Context<FreezeTicketSet>) -> Result<()> {
+        round::freeze_ticket_set(ctx)
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub fn count_batch(ctx: Context<CountBatch>, args: CountBatchArgs) -> Result<()> {
+        round::count_batch(ctx, args)
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub fn finalize_counts_fast_path(
+        ctx: Context<FinalizeCountsFastPath>,
+        args: FinalizeCountsFastPathArgs,
+    ) -> Result<()> {
+        round::finalize_counts_fast_path(ctx, args)
     }
 
     pub fn request_draw(ctx: Context<RequestDraw>, args: RequestDrawArgs) -> Result<()> {

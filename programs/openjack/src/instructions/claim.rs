@@ -347,6 +347,40 @@ mod tests {
             scanner_commitment_hash: [0; 32],
             scanner_observed_ticket_count: 0,
             finalized_ts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_committed: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            ticket_set_root: [0; 32],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            ticket_count_frozen: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            leaf_start_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            leaf_end_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_committed_ts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_attempts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_progress_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_finalized: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_set: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_start: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_len: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_hash: [0; 32],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_batches_accepted: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_batches_noop_replay: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_result_code: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_result_count: 0,
             bump: 0,
         };
 
@@ -383,6 +417,40 @@ mod tests {
             scanner_commitment_hash: [0; 32],
             scanner_observed_ticket_count: 0,
             finalized_ts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_committed: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            ticket_set_root: [0; 32],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            ticket_count_frozen: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            leaf_start_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            leaf_end_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_committed_ts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_attempts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_progress_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_finalized: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_set: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_start: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_len: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_hash: [0; 32],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_batches_accepted: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_batches_noop_replay: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_result_code: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_result_count: 0,
             bump: 0,
         };
 
@@ -419,6 +487,40 @@ mod tests {
             scanner_commitment_hash: [0; 32],
             scanner_observed_ticket_count: 0,
             finalized_ts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_committed: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            ticket_set_root: [0; 32],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            ticket_count_frozen: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            leaf_start_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            leaf_end_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_committed_ts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            freeze_attempts: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_progress_index: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_finalized: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_set: false,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_start: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_len: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_batch_hash: [0; 32],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_batches_accepted: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_batches_noop_replay: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_result_code: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_result_count: 0,
             bump: 0,
         };
 

@@ -66,4 +66,50 @@ pub enum OpenJackError {
     CnftMintAccountsInvalid,
     #[msg("Winner roots are incomplete for this round")]
     WinnerRootsIncomplete,
+    #[msg("Freeze state is invalid for this instruction")]
+    FreezeStateInvalid,
+    #[msg("Freeze commitment mismatch on idempotent call")]
+    FreezeCommitmentMismatch,
+    #[msg("Freeze source data is invalid")]
+    FreezeSourceInvalid,
+    #[msg("Count batch length must be greater than zero")]
+    CountBatchEmpty,
+    #[msg("Count batch start is ahead of current progress")]
+    CountProgressGap,
+    #[msg("Count batch replay does not match the last accepted batch")]
+    CountReplayMismatch,
+    #[msg("Count batch exceeds frozen ticket bounds")]
+    CountBatchOutOfBounds,
+    #[msg("Count batch length exceeds prototype max batch size")]
+    CountBatchTooLarge,
+    #[msg("Count batch leaf membership proof is invalid")]
+    CountBatchMembershipInvalid,
+    #[msg("Count batch work digest mismatch")]
+    CountBatchWorkMismatch,
+    #[msg("Fast-path verifier rejected proof")]
+    FastPathVerifierRejected,
+    #[msg("Fast-path round id binding mismatch")]
+    FastPathRoundIdMismatch,
+    #[msg("Fast-path ticket_set_root binding mismatch")]
+    FastPathTicketSetRootMismatch,
+    #[msg("Fast-path ticket_count_frozen binding mismatch")]
+    FastPathTicketCountMismatch,
+    #[msg("Fast-path winning main numbers binding mismatch")]
+    FastPathWinningMainMismatch,
+    #[msg("Fast-path winning bonus binding mismatch")]
+    FastPathWinningBonusMismatch,
+    #[msg("Fast-path tier winner counts binding mismatch")]
+    FastPathTierWinnerCountsMismatch,
+    #[msg("Fast-path mock public inputs digest mismatch")]
+    FastPathMockPublicInputsMismatch,
+    #[msg("Fast-path mock proof digest mismatch")]
+    FastPathMockProofMismatch,
+    #[msg("Fast-path verifier instruction missing from transaction")]
+    FastPathVerifierInstructionMissing,
+    #[msg("Fast-path verifier instruction is invalid")]
+    FastPathVerifierInstructionInvalid,
+    #[msg("Fast-path verifier pubkey mismatch")]
+    FastPathVerifierPubkeyMismatch,
+    #[msg("Fast-path verifier message mismatch")]
+    FastPathVerifierMessageMismatch,
 }

@@ -4,10 +4,22 @@
 
 :root {
   font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --oj-bg: #0b1020;
+  --oj-bg-card: #131a2b;
+  --oj-bg-elev: #1b2236;
+  --oj-text: #edf2ff;
+  --oj-text-muted: #9da8c5;
+  --oj-border: rgba(255, 255, 255, 0.1);
+  --oj-brand: #14b8a6;
+  --oj-ok: #22c55e;
+  --oj-warn: #f59e0b;
+  --oj-danger: #f43f5e;
 }
 
 body {
-  @apply m-0 min-h-screen bg-slate-950 text-slate-100;
+  @apply m-0 min-h-screen;
+  background: radial-gradient(1000px 600px at 10% -10%, #1a2140 0%, transparent 55%), var(--oj-bg);
+  color: var(--oj-text);
 }
 
 #root {

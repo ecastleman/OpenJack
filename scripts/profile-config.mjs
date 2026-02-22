@@ -22,6 +22,13 @@ export const PROFILE_SPECS = {
       OPENJACK_GATE_SKIP_AUTO_CLAIM: "true",
     },
   },
+  "prototype-freeze": {
+    expectedProgramId: null,
+    defaults: {
+      OPENJACK_PROOF_MODE: "off",
+      OPENJACK_GATE_SKIP_AUTO_CLAIM: "true",
+    },
+  },
 };
 
 export function getProfileSpec(profile) {

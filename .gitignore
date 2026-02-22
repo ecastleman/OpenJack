@@ -92,3 +92,6 @@ reports/
 # Ignore stray binaries
 node
 openjack@*
+
+# Local UI experiments
+UI Demo/

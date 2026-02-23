@@ -28,15 +28,15 @@ Scope: prototype-gated, non-activating integration prep only
    - `FastPathMockProofMismatch` (6050)
    - `FastPathVerifierRejected` (6042)
 4. End-to-end mock verifier harness added:
-   - `/Users/ernesto/Documents/New project/scripts/fast-path-mock-harness.mjs`
+   - `scripts/fast-path-mock-harness.mjs`
    - Script alias: `npm run fast-path:mock-harness`
    - Captures simulator logs/err/CU per scenario.
 
 ## Test + Trace Links
 - Error definitions:
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/errors.rs`
+  - `programs/openjack/src/errors.rs`
 - Enforcement path:
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`
+  - `programs/openjack/src/instructions/round.rs`
 - Key tests:
   - `finalize_counts_fast_path_rejects_round_id_mismatch`
   - `finalize_counts_fast_path_rejects_ticket_set_root_mismatch`
@@ -51,7 +51,7 @@ Scope: prototype-gated, non-activating integration prep only
 
 ## Harness Artifact (Deterministic Trace)
 - Artifact:
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/fast-path-mock-harness-1771698289382.json`
+  - `reports/protocol-gate/fast-path-mock-harness-1771698289382.json`
 - Result summary:
   - Positive scenario succeeds.
   - Every binder mismatch scenario fails with its expected specific custom error.

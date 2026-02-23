@@ -9,8 +9,8 @@ Canonical source (one sentence):
 - The canonical ticket-set commitment is deterministically derived from `Round` account state only (`round_id`, `tree_address`, `ticket_count`, `close_ts`, `leaf_start_index`, `leaf_end_index`) and written as `ticket_set_root`.
 
 Code path pointer:
-- Derivation function: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
-- Commit/apply logic: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
+- Derivation function: `programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
+- Commit/apply logic: `programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
 
 ## Executive Verdict
 
@@ -28,11 +28,11 @@ Code path pointer:
 4. Runtime currently initializes/reuses one cNFT tree by default (`OPENJACK_TREE_MAX_DEPTH` default `14`, i.e. ~16,384 leaves).
 
 Primary references:
-- `/Users/ernesto/Documents/New project/programs/openjack/src/state.rs`
-- `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`
-- `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/purchase.rs`
-- `/Users/ernesto/Documents/New project/services/scanner/src/adapters/publisher.js`
-- `/Users/ernesto/Documents/New project/scripts/init-cnft-tree.mjs`
+- `programs/openjack/src/state.rs`
+- `programs/openjack/src/instructions/round.rs`
+- `programs/openjack/src/instructions/purchase.rs`
+- `services/scanner/src/adapters/publisher.js`
+- `scripts/init-cnft-tree.mjs`
 
 ## Spike A: Canonical Freeze Feasibility
 
@@ -79,11 +79,11 @@ Operationally safe form:
 ## Empirical CU Inputs (Measured)
 
 Source report:
-- `/Users/ernesto/Documents/New project/reports/protocol-gate/devnet-claim-cu-statistics.json`
-- `/Users/ernesto/Documents/New project/reports/protocol-gate/devnet-claim-cu-refresh-validation.json`
+- `reports/protocol-gate/devnet-claim-cu-statistics.json`
+- `reports/protocol-gate/devnet-claim-cu-refresh-validation.json`
 
 Baseline sample details:
-1. RPC: `https://solana-devnet.g.alchemy.com/v2/...`
+1. RPC: `ALCHEMY_DEVNET_RPC_URL`
 2. Fixed claim signatures sampled: `60`
 3. Matched with compute units: `60/60`
 4. Failed fetches: `0`
@@ -97,7 +97,7 @@ Baseline claim-proxy CU:
 6. CV: `0.0512` (low spread)
 
 Refresh validation details:
-1. RPC: `https://solana-devnet.g.alchemy.com/v2/...`
+1. RPC: `ALCHEMY_DEVNET_RPC_URL`
 2. Wallet signatures collected: `1,400`
 3. Transactions scanned: `1,174`
 4. Matched claim transactions: `120`
@@ -204,7 +204,7 @@ Move to GO only after all are proven:
 
 This memo locks the intended path interaction semantics for future phases.
 Normative detail lives in:
-- `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
+- `docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
   - section: `Fast-Path Retry Semantics`
 
 Locked rules:

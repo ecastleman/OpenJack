@@ -24,13 +24,13 @@
   - Governance/timeout bypass
 
 ## Code Paths
-- `/Users/ernesto/Documents/New project/programs/openjack/src/lib.rs`
-- `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`
+- `programs/openjack/src/lib.rs`
+- `programs/openjack/src/instructions/round.rs`
   - `FinalizeCountsFastPathArgs`
   - `finalize_counts_fast_path`
   - `apply_finalize_counts_fast_path`
   - `validate_fast_path_bindings`
-- `/Users/ernesto/Documents/New project/programs/openjack/src/errors.rs`
+- `programs/openjack/src/errors.rs`
 
 ## Acceptance Evidence
 Positive-path:

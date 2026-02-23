@@ -9,11 +9,11 @@ Use this template for any implementation PR after Phase 2 checklist exit.
 
 ## Checklist Linkage
 - Phase 2 checklist:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+  - `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 - Task board item(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
+  - `docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
 - Traceability row(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
+  - `docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
 
 ## Gate Verification
 - Canonical-source consistency:

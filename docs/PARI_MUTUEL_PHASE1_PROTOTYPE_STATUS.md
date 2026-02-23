@@ -103,4 +103,4 @@ New/extended prototype tests include:
 - This is a feature-gated prototype proving semantics and testability.
 - This artifact does **not** claim end-to-end production readiness for canonical freeze architecture.
 - Phase 2 remains conditional on explicit go/no-go for full architecture rollout.
-- Phase 2 checklist artifact: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+- Phase 2 checklist artifact: `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`

@@ -18,7 +18,7 @@ Scope: prototype-gated planning exit (no behavior changes)
 - No governance/manual escape hatch is defined in Phase 2 by design.
 
 ## Checklist Exit Criteria Status
-From `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`:
+From `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`:
 
 1. Canonical-source definition + pointer: PASS  
 2. `CLOSED_PENDING_FREEZE` liveness/escape-hatch policy: PASS  
@@ -29,7 +29,7 @@ From `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 7. Concrete measurement commands + thresholds: PASS  
 8. Prototype-gated + no governance escape hatch: PASS  
 9. No protocol behavior changes in checklist PR: PASS  
-10. Follow-on implementation template references checklist: PASS (`/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_IMPL_PR_TEMPLATE.md`)
+10. Follow-on implementation template references checklist: PASS (`docs/PARI_MUTUEL_PHASE2_IMPL_PR_TEMPLATE.md`)
 
 ## Decision
 `READY_FOR_IMPL`

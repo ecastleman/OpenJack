@@ -5,7 +5,7 @@ Scope: one final empirical viability re-check before parking ZK
 
 ## Preconditions
 1. PR12 Gate A fail acknowledged:
-   - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR12_GATE_A_REPORT.md`
+   - `docs/PARI_MUTUEL_IMPL_PR12_GATE_A_REPORT.md`
 2. Re-check is empirical (compile + invoke + measured CU/reliability), not API surface inference only.
 3. Re-check remains non-activating.
 

@@ -25,8 +25,8 @@ Canonical source (one sentence):
 - The canonical ticket-set commitment is deterministically derived from `Round` account state only (`round_id`, `tree_address`, `ticket_count`, `close_ts`, `leaf_start_index`, `leaf_end_index`) and written as `ticket_set_root`.
 
 Code path pointer:
-- Derivation function: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
-- Commit/apply logic: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
+- Derivation function: `programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
+- Commit/apply logic: `programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
 
 ## Goals
 1. No permanent non-terminal round states after draw.
@@ -109,14 +109,14 @@ Notes:
 ### PR5 Transition/Test Trace Table
 | Transition Rule | Enforcing Path | Test Trace |
 |---|---|---|
-| Fast-path finalize can set terminal count state from unfinalized state | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_marks_terminal_count_state` |
-| Fast-path finalize can short-circuit partial batch progress | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_short_circuits_partial_batch_progress` |
-| Fast-path replay after finalization is immutable no-op | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_replay_is_noop_and_immutable` |
-| Batch path can terminalize when progress reaches frozen count | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_count_batch`) | `count_batch_multi_batch_progress_reaches_finalized_end_state` |
-| Batch mutation after fast-path finalization is deterministically rejected | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_count_batch`) | `count_batch_after_fast_path_finalized_rejects_new_range` |
-| Batch replay of last accepted batch remains deterministic no-op post-finalization | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_count_batch`) | `count_batch_replay_last_batch_after_finalized_is_noop` |
-| Fast-path finalize rejects any bound input mismatch with specific error | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`validate_fast_path_bindings`) | `finalize_counts_fast_path_rejects_round_id_mismatch`; `finalize_counts_fast_path_rejects_ticket_set_root_mismatch`; `finalize_counts_fast_path_rejects_ticket_count_mismatch`; `finalize_counts_fast_path_rejects_winning_main_mismatch`; `finalize_counts_fast_path_rejects_winning_bonus_mismatch`; `finalize_counts_fast_path_rejects_tier_winner_count_mismatch_on_replay` |
-| Fast-path finalize requires verifier acceptance bit in prototype mode | `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_rejects_mock_verifier_false` |
+| Fast-path finalize can set terminal count state from unfinalized state | `programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_marks_terminal_count_state` |
+| Fast-path finalize can short-circuit partial batch progress | `programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_short_circuits_partial_batch_progress` |
+| Fast-path replay after finalization is immutable no-op | `programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_replay_is_noop_and_immutable` |
+| Batch path can terminalize when progress reaches frozen count | `programs/openjack/src/instructions/round.rs` (`apply_count_batch`) | `count_batch_multi_batch_progress_reaches_finalized_end_state` |
+| Batch mutation after fast-path finalization is deterministically rejected | `programs/openjack/src/instructions/round.rs` (`apply_count_batch`) | `count_batch_after_fast_path_finalized_rejects_new_range` |
+| Batch replay of last accepted batch remains deterministic no-op post-finalization | `programs/openjack/src/instructions/round.rs` (`apply_count_batch`) | `count_batch_replay_last_batch_after_finalized_is_noop` |
+| Fast-path finalize rejects any bound input mismatch with specific error | `programs/openjack/src/instructions/round.rs` (`validate_fast_path_bindings`) | `finalize_counts_fast_path_rejects_round_id_mismatch`; `finalize_counts_fast_path_rejects_ticket_set_root_mismatch`; `finalize_counts_fast_path_rejects_ticket_count_mismatch`; `finalize_counts_fast_path_rejects_winning_main_mismatch`; `finalize_counts_fast_path_rejects_winning_bonus_mismatch`; `finalize_counts_fast_path_rejects_tier_winner_count_mismatch_on_replay` |
+| Fast-path finalize requires verifier acceptance bit in prototype mode | `programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`) | `finalize_counts_fast_path_rejects_mock_verifier_false` |
 
 ## `CLOSED_PENDING_FREEZE` Liveness Policy (Phase 2 Lock)
 Normative policy:

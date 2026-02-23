@@ -13,7 +13,7 @@ Policy lock:
 3. `B=7` at `400k` CU cap is aggressive opt-in only and must remain disabled by default.
 
 Trace evidence artifact:
-- `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-summary-1771655463798.json`
+- `reports/protocol-gate/count-batch-cu-summary-1771655463798.json`
 - Note: current prototype on-chain max-batch guard rejects `B=7` (`CountBatchTooLarge`/custom `6039`).
 
 ## Settlement Role Policy (Locked)
@@ -31,9 +31,9 @@ Trace evidence artifact:
 
 ## Canonical Derivation Input Change Gate (Locked)
 - Any change to canonical derivation inputs (`round_id`, `tree_address`, `ticket_count`, `close_ts`, `leaf_start_index`, `leaf_end_index`) requires:
-  1. spec diff in `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
-  2. checklist update in `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
-  3. test update in `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`
+  1. spec diff in `docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
+  2. checklist update in `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+  3. test update in `programs/openjack/src/instructions/round.rs`
 - No exception path in Phase 2.
 
 ## PASS/FAIL for P2-06

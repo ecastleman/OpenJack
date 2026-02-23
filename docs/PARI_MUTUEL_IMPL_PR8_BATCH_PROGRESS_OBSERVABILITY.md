@@ -10,16 +10,16 @@ Scope: prototype-gated only; no settlement activation, no migration, no fast-pat
   - `count_last_result_code`
   - `count_last_result_count`
 - Added prototype event:
-  - `CountBatchObserved` in `/Users/ernesto/Documents/New project/programs/openjack/src/events.rs`
+  - `CountBatchObserved` in `programs/openjack/src/events.rs`
   - emitted from `count_batch` with:
     - `processed`, `total`, `remaining`
     - last result code + streak count
     - accepted/noop replay counters
 - Added single read surface script:
-  - `/Users/ernesto/Documents/New project/scripts/count-batch-status.mjs`
+  - `scripts/count-batch-status.mjs`
   - package alias: `npm run count-batch:status`
 - Added hard-fail visibility summary script:
-  - `/Users/ernesto/Documents/New project/scripts/count-batch-failures.mjs`
+  - `scripts/count-batch-failures.mjs`
   - package alias: `npm run count-batch:failures`
 
 ## One-line status format

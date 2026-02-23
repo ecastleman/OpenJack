@@ -1,24 +1,24 @@
 # Pari-Mutuel Phase 2 Checklist PR
 
 Date: 2026-02-20
-Baseline: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE1_PROTOTYPE_STATUS.md` (locked)
+Baseline: `docs/PARI_MUTUEL_PHASE1_PROTOTYPE_STATUS.md` (locked)
 Scope: checklist/spec hardening only (no production migration). Phase 2 remains prototype-gated.
-Execution board: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
-Invariant matrix: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
-Error taxonomy: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md`
-P2-05 rent artifact: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_P2_05_RENT_MEASUREMENT.md`
-Implementation checklist: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_IMPLEMENTATION_CHECKLIST.md`
-Traceability bundle: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
-Exit review: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_EXIT_REVIEW.md`
-Follow-on PR template: `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_IMPL_PR_TEMPLATE.md`
+Execution board: `docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
+Invariant matrix: `docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
+Error taxonomy: `docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md`
+P2-05 rent artifact: `docs/PARI_MUTUEL_PHASE2_P2_05_RENT_MEASUREMENT.md`
+Implementation checklist: `docs/PARI_MUTUEL_PHASE2_IMPLEMENTATION_CHECKLIST.md`
+Traceability bundle: `docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
+Exit review: `docs/PARI_MUTUEL_PHASE2_EXIT_REVIEW.md`
+Follow-on PR template: `docs/PARI_MUTUEL_PHASE2_IMPL_PR_TEMPLATE.md`
 
 ## 1) Canonical Source Definition (Audit Clarity)
 Canonical source (one sentence):
 - The canonical ticket-set commitment is deterministically derived from `Round` account state only (`round_id`, `tree_address`, `ticket_count`, `close_ts`, `leaf_start_index`, `leaf_end_index`) and written as `ticket_set_root`.
 
 Code path pointer:
-- Derivation function: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
-- Commit/apply logic: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
+- Derivation function: `programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
+- Commit/apply logic: `programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
 
 Audit note:
 - `freeze_ticket_set` currently accepts no caller-provided commitment args; caller timing/signer identity do not alter derived root.
@@ -92,7 +92,7 @@ Policy:
 ## 4) Error Taxonomy (Retryable vs Hard-Stop)
 No timeout-based hard-stop is allowed in this phase.  
 Normative row-level mapping is defined in:
-- `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md`
+- `docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md`
 
 Gate:
 - PASS if taxonomy is documented and implemented without timeout-based bypass semantics.
@@ -120,7 +120,7 @@ Command:
 cargo test -p openjack --lib --features canonical-freeze-prototype
 ```
 Empirical CU input artifact:
-- `/Users/ernesto/Documents/New project/reports/protocol-gate/devnet-claim-cu-refresh-validation.json`
+- `reports/protocol-gate/devnet-claim-cu-refresh-validation.json`
 
 Acceptance thresholds:
 - PASS if guardrails remain:

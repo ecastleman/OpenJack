@@ -47,9 +47,9 @@ OPENJACK_REHEARSAL_ROUND_IDS=1771,1772,1773,1774,1775 npm run count-batch:rehear
 
 ## Artifact
 The script writes one JSON artifact under:
-- `/Users/ernesto/Documents/New project/reports/protocol-gate/activation-rehearsal-<timestamp>.json`
+- `reports/protocol-gate/activation-rehearsal-<timestamp>.json`
 - and updates:
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/latest.json`
+  - `reports/protocol-gate/latest.json`
 
 Artifact metadata includes:
 1. `git_commit`
@@ -62,9 +62,9 @@ Artifact metadata includes:
 8. SLO thresholds + check results (`slo`)
 
 Suite artifact:
-- `/Users/ernesto/Documents/New project/reports/protocol-gate/activation-rehearsal-suite-<timestamp>.json`
+- `reports/protocol-gate/activation-rehearsal-suite-<timestamp>.json`
 - and pointer:
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/latest-suite.json`
+  - `reports/protocol-gate/latest-suite.json`
 
 ## Determinism/Drift Checks
 After run completion:
@@ -90,4 +90,4 @@ FAIL on any gate:
 ## Notes
 1. This runbook remains non-activating.
 2. Blocker snapshot (`B1..B8`) is copied into the artifact from:
-   - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR13_1_ACTIVATION_SCOREBOARD.md`
+   - `docs/PARI_MUTUEL_IMPL_PR13_1_ACTIVATION_SCOREBOARD.md`

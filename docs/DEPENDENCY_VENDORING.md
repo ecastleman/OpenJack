@@ -4,7 +4,7 @@ Use this flow to run Rust/Anchor tests in network-restricted environments.
 
 ## One-time setup on a machine with internet
 
-From `/Users/ernesto/Documents/New project`:
+From `.`:
 
 ```bash
 cargo generate-lockfile
@@ -21,7 +21,7 @@ Commit these paths:
 
 ## Running in restricted/offline environments
 
-From `/Users/ernesto/Documents/New project`:
+From `.`:
 
 ```bash
 cargo test -p openjack --offline

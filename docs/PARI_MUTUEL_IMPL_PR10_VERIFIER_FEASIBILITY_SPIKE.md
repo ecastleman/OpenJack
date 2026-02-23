@@ -23,11 +23,11 @@ Scope: prototype-gated verifier spike only (`canonical-freeze-prototype`)
    - `FastPathVerifierPubkeyMismatch`
    - `FastPathVerifierMessageMismatch`
 4. Expanded integration harness to exercise verifier mismatch classes and collect CU + proof prep latency:
-   - `/Users/ernesto/Documents/New project/scripts/fast-path-mock-harness.mjs`
+   - `scripts/fast-path-mock-harness.mjs`
 
 ## Artifacts
 - Main spike artifact (matrix + benchmark):
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/fast-path-mock-harness-1771699467707.json`
+  - `reports/protocol-gate/fast-path-mock-harness-1771699467707.json`
 - Deployed prototype program used for run:
   - `BtTuYHeZ7r9KkWUrH4EgrkY29oPqfrLuhWWtWzrJCp8G`
 - Frozen round used for run:
@@ -88,10 +88,10 @@ PASS
 
 ## Trace Links
 - Program enforcement:
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/errors.rs`
+  - `programs/openjack/src/instructions/round.rs`
+  - `programs/openjack/src/errors.rs`
 - Invariant matrix update:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
+  - `docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
 - Test suite run:
   - `cargo test -p openjack --lib --features canonical-freeze-prototype` (71 passed)
 

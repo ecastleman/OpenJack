@@ -13,11 +13,11 @@
 
 ## Checklist Linkage
 - Phase 2 checklist:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+  - `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 - Task board item(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
+  - `docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
 - Guardrail policy:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_IMPLEMENTATION_CHECKLIST.md`
+  - `docs/PARI_MUTUEL_PHASE2_IMPLEMENTATION_CHECKLIST.md`
 
 ## Guardrails
 - On-chain guardrail:
@@ -32,6 +32,6 @@
 - New enforcement test:
   - `count_batch_rejects_over_max_batch_size`
 - Runner script:
-  - `/Users/ernesto/Documents/New project/scripts/prototype-run-count-batch.mjs`
+  - `scripts/prototype-run-count-batch.mjs`
   - Package alias: `npm run count-batch:run`
 

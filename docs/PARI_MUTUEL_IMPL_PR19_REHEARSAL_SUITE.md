@@ -49,21 +49,24 @@ Suite aggregate:
 
 ## Artifact Paths
 1. Round artifacts:
-   - `/Users/ernesto/Documents/New project/reports/protocol-gate/activation-rehearsal-<timestamp>.json`
-   - pointer: `/Users/ernesto/Documents/New project/reports/protocol-gate/latest.json`
+   - `reports/protocol-gate/activation-rehearsal-<timestamp>.json`
+   - pointer: `reports/protocol-gate/latest.json`
 2. Suite artifact:
-   - `/Users/ernesto/Documents/New project/reports/protocol-gate/activation-rehearsal-suite-<timestamp>.json`
-   - pointer: `/Users/ernesto/Documents/New project/reports/protocol-gate/latest-suite.json`
+   - `reports/protocol-gate/activation-rehearsal-suite-<timestamp>.json`
+   - pointer: `reports/protocol-gate/latest-suite.json`
 
 ## Locked PASS Evidence
 1. PASS suite artifact (locked profile, five-round set):
-   - `/Users/ernesto/Documents/New project/reports/protocol-gate/activation-rehearsal-suite-1771779958870.json`
+   - `reports/protocol-gate/activation-rehearsal-suite-1771779958870.json`
 2. Inputs used in that PASS run:
    - round IDs: `1771776441,1771776801,1771777601,1771778155,1771774597`
    - stress round policy: `OPENJACK_SUITE_STRESS_BATCH_LEN=3`, `OPENJACK_SUITE_STRESS_REMAINING_THRESHOLD=36`
    - force-complete window: `OPENJACK_RUNNER_FORCE_COMPLETE_REMAINING=40`
 3. Final clean sanity rerun PASS artifact (same IDs, locked profile):
-   - `/Users/ernesto/Documents/New project/reports/protocol-gate/activation-rehearsal-suite-1771781562242.json`
+   - `reports/protocol-gate/activation-rehearsal-suite-1771781562242.json`
+4. Latest 5-round PASS artifact with regression guard enabled:
+   - `reports/protocol-gate/activation-rehearsal-suite-1771806831505.json`
+   - gates: `roundsMeetMinimum=true`, `suiteSloPass=true`, `regressionGuardPass=true`
 
 ## Stabilized Execution Profile (Deterministic)
 1. `ClientOffsetOutOfRange` is a deterministic client construction/window error and is classified as non-retryable hard-stop for the attempted payload.

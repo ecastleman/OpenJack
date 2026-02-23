@@ -66,16 +66,16 @@ Runner emits parseable `key=value` lines only:
 
 ## Official Bot Wrapper/Profile
 1. Wrapper:
-   - `/Users/ernesto/Documents/New project/scripts/official-count-batch-bot.mjs`
+   - `scripts/official-count-batch-bot.mjs`
 2. Profile defaults:
-   - `/Users/ernesto/Documents/New project/config/profiles/official-bot.env`
+   - `config/profiles/official-bot.env`
 3. Dry-run mode:
    - `OPENJACK_BOT_DRY_RUN=true npm run count-batch:bot`
    - emits decision lines only (no submit).
 
 ## Minimal Collector
 1. Collector:
-   - `/Users/ernesto/Documents/New project/scripts/collect-count-batch-logs.mjs`
+   - `scripts/collect-count-batch-logs.mjs`
 2. Purpose:
    - transforms `key=value` runner lines into JSONL.
 3. Optional file sink:

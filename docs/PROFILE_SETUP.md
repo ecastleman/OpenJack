@@ -13,8 +13,8 @@ Note:
 
 Edit:
 
-- `/Users/ernesto/Documents/New project/config/profiles/dev-fast.env`
-- `/Users/ernesto/Documents/New project/config/profiles/prod-like.env`
+- `config/profiles/dev-fast.env`
+- `config/profiles/prod-like.env`
 
 Set:
 
@@ -27,21 +27,21 @@ These IDs should be different.
 Prod-like build (1h settlement):
 
 ```bash
-cd "/Users/ernesto/Documents/New project"
+cd "."
 npm run build:program:prod-like
 ```
 
 Dev-fast build (3m settlement):
 
 ```bash
-cd "/Users/ernesto/Documents/New project"
+cd "."
 npm run build:program:dev-fast
 ```
 
 QA-fast build (20s settlement):
 
 ```bash
-cd "/Users/ernesto/Documents/New project"
+cd "."
 npm run build:program:qa-fast
 ```
 

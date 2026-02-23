@@ -16,7 +16,7 @@ Plus integration scaffolding:
 
 ## Run locally
 
-From `/Users/ernesto/Documents/New project`:
+From `.`:
 
 0. Preflight:
 
@@ -27,16 +27,16 @@ npm run preflight
 1. Start API:
 
 ```bash
-cd /Users/ernesto/Documents/New\ project/services/api
+cd services/api
 npm install
-psql "$DATABASE_URL" -f /Users/ernesto/Documents/New\ project/services/api/data/schema.sql
+psql "$DATABASE_URL" -f services/api/data/schema.sql
 node src/server.js
 ```
 
 2. Start web app (new terminal):
 
 ```bash
-cd /Users/ernesto/Documents/New\ project/apps/web
+cd apps/web
 npm install
 npm run dev
 ```
@@ -49,9 +49,9 @@ npm run dev
 4. Run scanner for target round:
 
 ```bash
-cd /Users/ernesto/Documents/New\ project/services/scanner
+cd services/scanner
 npm install
-psql "${SCANNER_DATABASE_URL:-$DATABASE_URL}" -f /Users/ernesto/Documents/New\ project/services/scanner/data/schema.sql
+psql "${SCANNER_DATABASE_URL:-$DATABASE_URL}" -f services/scanner/data/schema.sql
 OPENJACK_EVENT_SOURCE_MODE=postgres \
 OPENJACK_SCANNER_MODE=daemon \
 OPENJACK_SCAN_INTERVAL_SECS=30 \
@@ -86,14 +86,14 @@ node src/index.js
 5. Run devnet E2E harness:
 
 ```bash
-cd /Users/ernesto/Documents/New\ project
+cd .
 node scripts/devnet-e2e-openjack.mjs
 ```
 
 6. Run Seeker smoke checks:
 
 ```bash
-cd /Users/ernesto/Documents/New\ project
+cd .
 npm run seeker:smoke
 npm run seeker:report
 npm run seeker:ready
@@ -107,7 +107,7 @@ Optional smoke env:
 - `SMOKE_WALLET` (default `11111111111111111111111111111111`)
 - `SMOKE_ROUND_ID` (override active round discovery)
 - `SMOKE_WRITE_REPORT=true` (write timestamped JSON+MD report)
-- `SMOKE_REPORT_DIR` (default `/Users/ernesto/Documents/New project/reports/seeker`)
+- `SMOKE_REPORT_DIR` (default `reports/seeker`)
 
 `seeker:report` writes artifacts:
 - `reports/seeker/seeker-smoke-<timestamp>.json`
@@ -137,7 +137,7 @@ for a live Seeker beta session. It exits non-zero if required env vars are missi
 7. Run round orchestrator (keeper):
 
 ```bash
-cd /Users/ernesto/Documents/New\ project
+cd .
 OPENJACK_KEEPER_MODE=daemon \
 OPENJACK_KEEPER_INTERVAL_SECS=15 \
 OPENJACK_API_BASE=http://localhost:8080 \
@@ -163,7 +163,7 @@ If the harness exits with `RPC not reachable`, your machine cannot access the co
 
 - `RPC_URL` (devnet/mainnet RPC)
 - `OPENJACK_PROGRAM_ID`
-- `OPENJACK_IDL_PATH` (default `/Users/ernesto/Documents/New project/target/idl/openjack.json`)
+- `OPENJACK_IDL_PATH` (default `target/idl/openjack.json`)
 - `SCANNER_KEYPAIR_PATH` (scanner live mode signer)
 - `INGEST_API_KEY`
 - `DATABASE_URL` (Postgres connection string)

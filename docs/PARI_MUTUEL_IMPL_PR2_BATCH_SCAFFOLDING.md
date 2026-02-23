@@ -14,11 +14,11 @@
 
 ## Checklist Linkage
 - Phase 2 checklist:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+  - `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 - Task board item(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
+  - `docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
 - Traceability row(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
+  - `docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
 
 ## Gate Verification
 - Canonical-source consistency:
@@ -40,7 +40,7 @@
 - Tests:
   - `cargo test -p openjack --lib --features canonical-freeze-prototype` (`51 passed`)
   - `cargo test -p openjack --lib` (`33 passed`)
-  - New scaffold invariant tests in `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`:
+  - New scaffold invariant tests in `programs/openjack/src/instructions/round.rs`:
     - `count_batch_advances_progress_monotonically`
     - `count_batch_rejects_skip_ahead`
     - `count_batch_replay_same_batch_is_idempotent_noop`

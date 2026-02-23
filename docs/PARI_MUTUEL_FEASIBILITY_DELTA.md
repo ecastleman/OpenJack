@@ -7,15 +7,15 @@ This document maps the draft architecture assumptions to the current codebase an
 - `REBUILD_LEVEL`
 
 Companion draft:
-- `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
+- `docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
 
 ## Canonical Source Definition (Phase 2 Lock)
 Canonical source (one sentence):
 - The canonical ticket-set commitment is deterministically derived from `Round` account state only (`round_id`, `tree_address`, `ticket_count`, `close_ts`, `leaf_start_index`, `leaf_end_index`) and written as `ticket_set_root`.
 
 Code path pointer:
-- Derivation function: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
-- Commit/apply logic: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
+- Derivation function: `programs/openjack/src/instructions/round.rs` (`derive_prototype_ticket_set_root`)
+- Commit/apply logic: `programs/openjack/src/instructions/round.rs` (`apply_prototype_freeze`, called by `freeze_ticket_set`)
 
 ## Executive Summary
 1. Current system already has deterministic per-round `ticket_count` and per-ticket `leaf_index` assignment at purchase time.

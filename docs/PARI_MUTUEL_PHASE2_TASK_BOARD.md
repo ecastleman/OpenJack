@@ -3,8 +3,8 @@
 Date: 2026-02-20  
 Mode: checklist-to-execution planning only (no migration behavior changes)  
 Baseline:
-- `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE1_PROTOTYPE_STATUS.md`
-- `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+- `docs/PARI_MUTUEL_PHASE1_PROTOTYPE_STATUS.md`
+- `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 
 ## Global Constraints
 - Prototype-gated only.
@@ -139,7 +139,7 @@ Deliverables:
   - `B=6` @ 400k CU
   - `B=7` as aggressive opt-in only
 - Pointer to CU artifact:
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/devnet-claim-cu-refresh-validation.json`
+  - `reports/protocol-gate/devnet-claim-cu-refresh-validation.json`
 
 PASS gates:
 - Guardrails include 30% safety-margin rationale.
@@ -182,7 +182,7 @@ Deliverables:
   - explicit recommendation (`READY_FOR_IMPL` or `NOT_READY`)
 
 PASS gates:
-- All gates in `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md` marked pass.
+- All gates in `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md` marked pass.
 - No scope drift beyond prototype-gated planning.
 
 FAIL gates:

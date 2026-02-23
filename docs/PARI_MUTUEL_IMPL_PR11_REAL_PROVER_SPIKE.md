@@ -73,18 +73,18 @@ PASS
 
 ## Artifacts
 - Full spike run (matrix + distributions):
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/fast-path-mock-harness-1771702886962.json`
+  - `reports/protocol-gate/fast-path-mock-harness-1771702886962.json`
 - Single summary artifact:
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/fast-path-verifier-spike-summary-1771702886962.json`
+  - `reports/protocol-gate/fast-path-verifier-spike-summary-1771702886962.json`
 
 ## Code/Trace Links
 - Verifier/binding enforcement:
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/errors.rs`
+  - `programs/openjack/src/instructions/round.rs`
+  - `programs/openjack/src/errors.rs`
 - Harness:
-  - `/Users/ernesto/Documents/New project/scripts/fast-path-mock-harness.mjs`
+  - `scripts/fast-path-mock-harness.mjs`
 - Invariants:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
+  - `docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
 
 ## Go/No-Go Conclusion (PR11 Scope)
 GO for continued prototype work.

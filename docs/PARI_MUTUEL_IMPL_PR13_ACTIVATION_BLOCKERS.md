@@ -16,7 +16,7 @@ Scope: governance/activation readiness checklist only (no behavior changes)
   - `INV-07` post-finalization immutability remains enforced.
   - `INV-08` fast-path binding integrity remains explicit and tested.
 - Evidence:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
+  - `docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
   - `cargo test -p openjack --lib --features canonical-freeze-prototype`
 
 ### B2. Batch progress operations playbook exists
@@ -25,12 +25,12 @@ Scope: governance/activation readiness checklist only (no behavior changes)
   - one-command hard-fail diagnosis workflow (tx logs/simulation summary)
   - runner decision policy (profitability + force-complete) documented and machine-parseable output contract locked
 - Evidence:
-  - `/Users/ernesto/Documents/New project/scripts/count-batch-status.mjs`
-  - `/Users/ernesto/Documents/New project/scripts/count-batch-failures.mjs`
-  - `/Users/ernesto/Documents/New project/scripts/prototype-run-count-batch.mjs`
-  - `/Users/ernesto/Documents/New project/scripts/rehearse-count-batch-activation.mjs`
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR17_RUNNER_OPS_POLICY.md`
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR18_REHEARSAL_RUNBOOK.md`
+  - `scripts/count-batch-status.mjs`
+  - `scripts/count-batch-failures.mjs`
+  - `scripts/prototype-run-count-batch.mjs`
+  - `scripts/rehearse-count-batch-activation.mjs`
+  - `docs/PARI_MUTUEL_IMPL_PR17_RUNNER_OPS_POLICY.md`
+  - `docs/PARI_MUTUEL_IMPL_PR18_REHEARSAL_RUNBOOK.md`
 
 ### B3. Signature fast-path trust model approved
 - Required:
@@ -39,7 +39,7 @@ Scope: governance/activation readiness checklist only (no behavior changes)
   - multisig/committee option and escalation
   - monitoring + alert thresholds
 - Evidence:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR13_SIGNATURE_FAST_PATH_TRUST_MODEL.md`
+  - `docs/PARI_MUTUEL_IMPL_PR13_SIGNATURE_FAST_PATH_TRUST_MODEL.md`
 
 ### B4. ZK status explicitly resolved
 - Required:
@@ -48,8 +48,8 @@ Scope: governance/activation readiness checklist only (no behavior changes)
   - explicit PASS/FAIL outcome with stop policy
   - explicit lane policy: `N/A` for batch-canonical activation, `REQUIRED` for any ZK-fast-path activation
 - Evidence:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR12_GATE_A_REPORT.md`
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR13_ZK_RECHECK_GATES.md`
+  - `docs/PARI_MUTUEL_IMPL_PR12_GATE_A_REPORT.md`
+  - `docs/PARI_MUTUEL_IMPL_PR13_ZK_RECHECK_GATES.md`
 
 ### B5. No activation bypasses
 - Required:
@@ -63,8 +63,8 @@ Scope: governance/activation readiness checklist only (no behavior changes)
   - canonical claim unlock explicitly classified as batch authority only
   - user guarantee language approved and linked
 - Evidence:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR14_ACTIVATION_PLAN.md`
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR14_USER_GUARANTEES.md`
+  - `docs/PARI_MUTUEL_IMPL_PR14_ACTIVATION_PLAN.md`
+  - `docs/PARI_MUTUEL_IMPL_PR14_USER_GUARANTEES.md`
 
 ### B7. Settlement bounty economics lock
 - Required:
@@ -73,8 +73,8 @@ Scope: governance/activation readiness checklist only (no behavior changes)
   - optional Earn/Help Finalize UX requirement documented
   - prototype implementation + invariant tests linked (still non-activating)
 - Evidence:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR14_ACTIVATION_PLAN.md`
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_IMPL_PR15_BOUNTY_ACCOUNTING_REPORT.md`
+  - `docs/PARI_MUTUEL_IMPL_PR14_ACTIVATION_PLAN.md`
+  - `docs/PARI_MUTUEL_IMPL_PR15_BOUNTY_ACCOUNTING_REPORT.md`
 
 ### B8. Round solvency floor invariant is structurally enforced
 - Required:
@@ -82,19 +82,19 @@ Scope: governance/activation readiness checklist only (no behavior changes)
   - invariant has executable tests for claim path, count-batch bounty payout path, and mixed-mode finalize interactions
   - no instruction path can starve canonical claimability funds or bounty carry via unrelated debit
 - Evidence:
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/solvency.rs` (`assert_round_solvency_floor`, `required_settlement_reserve`)
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/claim.rs` (pre-debit solvency check in `claim`)
-  - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (pre-transfer solvency check in `pay_count_batch_bounty`)
+  - `programs/openjack/src/solvency.rs` (`assert_round_solvency_floor`, `required_settlement_reserve`)
+  - `programs/openjack/src/instructions/claim.rs` (pre-debit solvency check in `claim`)
+  - `programs/openjack/src/instructions/round.rs` (pre-transfer solvency check in `pay_count_batch_bounty`)
   - `npm run check:round-solvency` (regression guard for new round lamport debit callsites)
   - `cargo test -p openjack --lib --features canonical-freeze-prototype` (solvency + mixed sequencing tests)
 
 #### B8 Debit-Path Inventory (Round Lamports)
 1. `claim` payout transfer
-   - File: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/claim.rs`
+   - File: `programs/openjack/src/instructions/claim.rs`
    - Debit site: `pay_claim_to_claimer` mutates round lamports.
    - Solvency guard: `assert_round_solvency_floor` executed before `debit_claim_source_pool` and lamport transfer.
 2. `count_batch` bounty payout transfer
-   - File: `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`
+   - File: `programs/openjack/src/instructions/round.rs`
    - Debit site: `pay_count_batch_bounty` mutates round lamports.
    - Solvency guard: `assert_round_solvency_floor` executed before round->caller transfer and before bounty accounting mutation.
 3. Non-debit note

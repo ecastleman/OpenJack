@@ -15,20 +15,20 @@
 
 ## Checklist Linkage
 - Phase 2 checklist:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+  - `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 - Invariant matrix:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
+  - `docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`
 - Spec transition table:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
+  - `docs/PARI_MUTUEL_CANONICAL_COUNT_SPEC_DRAFT.md`
 
 ## Code Changes
 1. New feature-gated instruction:
-   - `/Users/ernesto/Documents/New project/programs/openjack/src/lib.rs`
-   - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`FinalizeCountsFastPath`, `finalize_counts_fast_path`)
+   - `programs/openjack/src/lib.rs`
+   - `programs/openjack/src/instructions/round.rs` (`FinalizeCountsFastPath`, `finalize_counts_fast_path`)
 2. Internal finalize helper:
-   - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`)
+   - `programs/openjack/src/instructions/round.rs` (`apply_finalize_counts_fast_path`)
 3. Determinism/post-finalization guards remain in batch path:
-   - `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs` (`apply_count_batch`)
+   - `programs/openjack/src/instructions/round.rs` (`apply_count_batch`)
 
 ## Test Evidence
 - `cargo test -p openjack --lib --features canonical-freeze-prototype` -> `61 passed`

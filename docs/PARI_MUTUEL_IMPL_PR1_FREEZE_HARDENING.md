@@ -14,11 +14,11 @@
 
 ## Checklist Linkage
 - Phase 2 checklist:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+  - `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 - Task board item(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
+  - `docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
 - Traceability row(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
+  - `docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
 
 ## Gate Verification
 - Canonical-source consistency:
@@ -31,7 +31,7 @@
   - Confirmed.
 - Error taxonomy impact:
   - Strengthened with direct test coverage for previously missing freeze-path errors.
-  - Updated taxonomy trace links in `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md`.
+  - Updated taxonomy trace links in `docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md`.
 - Rent/CU guardrail impact:
   - None (no change).
 
@@ -39,7 +39,7 @@
 - Tests:
   - `cargo test -p openjack --lib --features canonical-freeze-prototype` (`45 passed`)
   - `cargo test -p openjack --lib` (`33 passed`)
-  - Added tests in `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`:
+  - Added tests in `programs/openjack/src/instructions/round.rs`:
     - `begin_freeze_validation_rejects_before_close`
     - `begin_freeze_validation_rejects_wrong_state`
     - `apply_prototype_freeze_rejects_invalid_state`
@@ -48,4 +48,4 @@
 - Measurement artifacts:
   - Not applicable for this PR scope.
 - Spec diffs:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md` (test trace updates).
+  - `docs/PARI_MUTUEL_PHASE2_ERROR_TAXONOMY.md` (test trace updates).

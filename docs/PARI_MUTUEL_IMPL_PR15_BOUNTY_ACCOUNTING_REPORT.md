@@ -34,7 +34,7 @@ Scope: feature-gated (`canonical-freeze-prototype`) and non-activating.
    - total distributed never exceeds `floor(99% * bounty_pool_initial)`
    - remainder deterministically stays in `bounty_pool_balance`
 
-Trace row: `INV-09` in `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`.
+Trace row: `INV-09` in `docs/PARI_MUTUEL_PHASE2_INVARIANT_MATRIX.md`.
 
 ## Worked Examples
 ### Example A (small N)

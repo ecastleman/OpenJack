@@ -14,11 +14,11 @@
 
 ## Checklist Linkage
 - Phase 2 checklist:
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
+  - `docs/PARI_MUTUEL_PHASE2_CHECKLIST.md`
 - Task board item(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
+  - `docs/PARI_MUTUEL_PHASE2_TASK_BOARD.md`
 - Traceability row(s):
-  - `/Users/ernesto/Documents/New project/docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
+  - `docs/PARI_MUTUEL_PHASE2_TRACEABILITY_BUNDLE.md`
 
 ## Gate Verification
 - Canonical-source consistency:
@@ -38,7 +38,7 @@
 - Tests:
   - `cargo test -p openjack --lib --features canonical-freeze-prototype` (`56 passed`)
   - `cargo test -p openjack --lib` (`33 passed`)
-  - Added progress invariant tests in `/Users/ernesto/Documents/New project/programs/openjack/src/instructions/round.rs`:
+  - Added progress invariant tests in `programs/openjack/src/instructions/round.rs`:
     - `count_batch_multi_batch_progress_reaches_finalized_end_state`
     - `count_batch_replay_last_batch_after_finalized_is_noop`
     - `count_batch_after_finalized_new_range_rejected`
@@ -46,16 +46,16 @@
     - `count_batch_rejects_double_count_old_range`
     - `count_batch_replay_same_batch_is_idempotent_noop`
 - Measurement harness:
-  - `/Users/ernesto/Documents/New project/scripts/count-batch-cu-benchmark.mjs`
+  - `scripts/count-batch-cu-benchmark.mjs`
   - Initial prototype benchmark report (digest scaffold era):
-    - `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-benchmark-1771634536555.json`
+    - `reports/protocol-gate/count-batch-cu-benchmark-1771634536555.json`
   - Initial derived envelope summary:
-    - `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-summary-1771634571668.json`
+    - `reports/protocol-gate/count-batch-cu-summary-1771634571668.json`
   - Superseding real-membership-path benchmark:
-    - `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-benchmark-1771655463798.json`
+    - `reports/protocol-gate/count-batch-cu-benchmark-1771655463798.json`
   - Superseding summary:
-    - `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-summary-1771655463798.json`
+    - `reports/protocol-gate/count-batch-cu-summary-1771655463798.json`
   - Historical blocked attempt (pre-prototype deployment on `Cnra...` layout):
-    - `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-benchmark-blocked-1771633507.json`
+    - `reports/protocol-gate/count-batch-cu-benchmark-blocked-1771633507.json`
 - Spec diffs:
   - Not required; no activation or policy changes in this PR.

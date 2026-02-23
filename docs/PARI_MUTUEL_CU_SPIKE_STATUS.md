@@ -9,9 +9,9 @@ Goal: replace claim-proxy assumptions with direct `count_batch` CU measurement o
 - Program id: `BtTuYHeZ7r9KkWUrH4EgrkY29oPqfrLuhWWtWzrJCp8G`
 - Frozen round used: `1771718700` (`ticketCountFrozen=8`, `status=CLOSED_FROZEN`)
 - Harness report:
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-benchmark-1771655463798.json`
+  - `reports/protocol-gate/count-batch-cu-benchmark-1771655463798.json`
 - Summary artifact:
-  - `/Users/ernesto/Documents/New project/reports/protocol-gate/count-batch-cu-summary-1771655463798.json`
+  - `reports/protocol-gate/count-batch-cu-summary-1771655463798.json`
 
 ## Measured CU (30 runs per batch size)
 

@@ -10,7 +10,7 @@ FAIL
 Triggered. Per PR12 plan, Gates B/C/D were **not executed**.
 
 ## Evidence Artifact
-- `/Users/ernesto/Documents/New project/reports/protocol-gate/zk-gate-a-feasibility-1771703535854.json`
+- `reports/protocol-gate/zk-gate-a-feasibility-1771703535854.json`
 
 ## Why FAIL
 The current toolchain/runtime surface used by this repo exposes:

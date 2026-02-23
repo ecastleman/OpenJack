@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { confirmSignatureByPolling } from "./lib/confirm-signature-status.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -129,14 +130,7 @@ async function ensureTreeInitialized() {
     skipPreflight: false,
     maxRetries: 3,
   });
-  await connection.confirmTransaction(
-    {
-      signature: sig,
-      blockhash: latest.blockhash,
-      lastValidBlockHeight: latest.lastValidBlockHeight,
-    },
-    "confirmed",
-  );
+  await confirmSignatureByPolling(connection, sig);
 
   return { alreadyInitialized: false, payer, tree, treeConfig, sig, size, rentLamports };
 }

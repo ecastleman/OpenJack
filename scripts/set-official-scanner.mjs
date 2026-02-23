@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
+import { sendAnchorMethodWithPolling } from "./lib/send-anchor-method.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -57,13 +58,15 @@ async function main() {
     program = new anchor.Program({ ...idl, address: programId.toBase58() }, provider);
   }
   const config = deriveConfigPda(programId);
-  const sig = await program.methods
-    .setOfficialScanner(scannerPubkey)
-    .accounts({
-      authority: wallet.publicKey,
-      config,
-    })
-    .rpc();
+  const sig = await sendAnchorMethodWithPolling(
+    program.methods
+      .setOfficialScanner(scannerPubkey)
+      .accounts({
+        authority: wallet.publicKey,
+        config,
+      }),
+    { connection, signer: authority },
+  );
   console.log(`set_official_scanner sig=${sig}`);
   console.log(`official_scanner=${scannerPubkey.toBase58()}`);
 }

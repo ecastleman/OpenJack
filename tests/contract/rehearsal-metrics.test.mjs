@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   calcMaxRetryableBurst,
   calcMaxStallWindowMs,
+  countTerminalHardStops,
   evaluateRoundSlo,
   evaluateSuiteSlo,
 } from "../../scripts/lib/rehearsal-metrics.mjs";
@@ -15,6 +16,47 @@ test("calcMaxRetryableBurst tracks consecutive retryable errors", () => {
     { event: "COUNT_BATCH_RUNNER_ERROR", policy: "retryable" },
   ];
   assert.equal(calcMaxRetryableBurst(rows), 2);
+});
+
+test("countTerminalHardStops ignores handled ClientOffsetOutOfRange with same-attempt adjust", () => {
+  const rows = [
+    {
+      event: "COUNT_BATCH_RUNNER_ERROR",
+      policy: "hard_stop",
+      class: "ClientOffsetOutOfRange",
+      attempt_id: "r-1",
+      attempt_seq: 1,
+    },
+    {
+      event: "COUNT_BATCH_RUNNER_ADJUST",
+      class: "ClientOffsetOutOfRange",
+      resolved_class: "ClientOffsetOutOfRange",
+      adjust_handled: true,
+      attempt_id: "r-1",
+      attempt_seq: 1,
+    },
+    {
+      event: "COUNT_BATCH_RUNNER_ERROR",
+      policy: "hard_stop",
+      class: "CountBatchOutOfBounds",
+      attempt_id: "r-2",
+      attempt_seq: 2,
+    },
+  ];
+  assert.equal(countTerminalHardStops(rows), 1);
+});
+
+test("countTerminalHardStops keeps ClientOffsetOutOfRange terminal without handled adjust", () => {
+  const rows = [
+    {
+      event: "COUNT_BATCH_RUNNER_ERROR",
+      policy: "hard_stop",
+      class: "ClientOffsetOutOfRange",
+      attempt_id: "r-3",
+      attempt_seq: 3,
+    },
+  ];
+  assert.equal(countTerminalHardStops(rows), 1);
 });
 
 test("calcMaxStallWindowMs computes max gap between progress moves", () => {

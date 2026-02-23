@@ -9,6 +9,7 @@ import { extractErrorClass } from "./lib/count-batch-runner-policy.mjs";
 import {
   calcMaxRetryableBurst,
   calcMaxStallWindowMs,
+  countTerminalHardStops,
   evaluateRoundSlo,
   getRehearsalSloFromEnv,
   summarizeLatency,
@@ -238,7 +239,7 @@ function computeRunnerAggregates(rows) {
   let skip = 0;
   let tx = 0;
   let retryableErrors = 0;
-  let hardErrors = 0;
+  const hardErrors = countTerminalHardStops(rows);
   let rewardEstTotal = 0;
   let feeEstTotal = 0;
   let netEstTotal = 0;
@@ -251,10 +252,7 @@ function computeRunnerAggregates(rows) {
       netEstTotal += Number(r.net_est || 0);
     }
     if (r.event === "COUNT_BATCH_RUNNER_TX") tx += 1;
-    if (r.event === "COUNT_BATCH_RUNNER_ERROR") {
-      if (r.policy === "hard_stop") hardErrors += 1;
-      else retryableErrors += 1;
-    }
+    if (r.event === "COUNT_BATCH_RUNNER_ERROR" && r.policy !== "hard_stop") retryableErrors += 1;
   }
   return { submit, skip, tx, retryableErrors, hardErrors, rewardEstTotal, feeEstTotal, netEstTotal };
 }
@@ -380,7 +378,7 @@ async function main() {
             leafProofs,
           })
           .accounts({ caller: authority.publicKey, round: roundPda })
-          .rpc();
+          .simulate();
       } catch (error) {
         drill.class = extractErrorClass(error);
         drill.policy = drill.class === "CountReplayMismatch" ? "retryable" : "other";

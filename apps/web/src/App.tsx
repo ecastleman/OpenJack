@@ -127,6 +127,26 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
   }
 }
 
+async function confirmSignatureByPolling(
+  connection: ReturnType<typeof useConnection>["connection"],
+  signature: string,
+  { timeoutMs = 45_000, pollMs = 800 }: { timeoutMs?: number; pollMs?: number } = {},
+): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt <= timeoutMs) {
+    const statuses = await connection.getSignatureStatuses([signature], { searchTransactionHistory: false });
+    const status = statuses?.value?.[0] ?? null;
+    if (status?.err) {
+      throw new Error(`confirm_err=${JSON.stringify(status.err)}`);
+    }
+    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  throw new Error("RPC confirmation timeout");
+}
+
 function parseManualTicket(mainInput: string, bonusInput: string): { main: number[]; bonus: number } {
   const main = String(mainInput || "")
     .split(",")
@@ -339,14 +359,7 @@ export function App() {
         },
         confirm: async ({ prepared, submission }) => {
           await withTimeout(
-            connection.confirmTransaction(
-              {
-                signature: submission,
-                blockhash: prepared.recentBlockhash,
-                lastValidBlockHeight: prepared.lastValidBlockHeight,
-              },
-              "confirmed",
-            ),
+            confirmSignatureByPolling(connection, submission, { timeoutMs: 45_000 }),
             45_000,
             "RPC confirmation timeout",
           );

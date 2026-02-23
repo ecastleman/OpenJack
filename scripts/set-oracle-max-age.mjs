@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
+import { sendAnchorMethodWithPolling } from "./lib/send-anchor-method.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -61,13 +62,15 @@ async function main() {
       ? new PublicKey(configuredOracle)
       : SystemProgram.programId;
 
-  const sig = await program.methods
-    .setOracle(oraclePubkey, ORACLE_MAX_AGE_SECS)
-    .accounts({
-      authority: wallet.publicKey,
-      config,
-    })
-    .rpc();
+  const sig = await sendAnchorMethodWithPolling(
+    program.methods
+      .setOracle(oraclePubkey, ORACLE_MAX_AGE_SECS)
+      .accounts({
+        authority: wallet.publicKey,
+        config,
+      }),
+    { connection, signer: authority },
+  );
 
   console.log(`set_oracle_max_age sig=${sig}`);
   console.log(`oracle=${oraclePubkey.toBase58()}`);

@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
+import { sendAnchorMethodWithPolling } from "./lib/send-anchor-method.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -103,20 +104,22 @@ async function main() {
   const openTs = now + OPEN_OFFSET_SECS;
   const closeTs = now + CLOSE_IN_SECS;
 
-  const sig = await program.methods
-    .createRound({
-      roundId: new BN(ROUND_ID),
-      openTs: new BN(openTs),
-      closeTs: new BN(closeTs),
-      treeAddress,
-    })
-    .accounts({
-      authority: wallet.publicKey,
-      config,
-      round,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
+  const sig = await sendAnchorMethodWithPolling(
+    program.methods
+      .createRound({
+        roundId: new BN(ROUND_ID),
+        openTs: new BN(openTs),
+        closeTs: new BN(closeTs),
+        treeAddress,
+      })
+      .accounts({
+        authority: wallet.publicKey,
+        config,
+        round,
+        systemProgram: SystemProgram.programId,
+      }),
+    { connection, signer: authority },
+  );
 
   console.log(`create_round sig=${sig}`);
   console.log(`round_id=${ROUND_ID}`);

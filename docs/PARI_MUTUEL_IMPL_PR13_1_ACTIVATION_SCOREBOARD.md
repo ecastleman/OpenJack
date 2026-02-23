@@ -35,16 +35,21 @@ Primary blocker source:
 3. Latest 5-round PASS artifact (regression guard enabled):
    - `reports/protocol-gate/activation-rehearsal-suite-1771806831505.json`
    - gate snapshot: `roundsMeetMinimum=true`, `suiteSloPass=true`, `regressionGuardPass=true`
-4. Code state anchor:
+4. Script-only ping-isolation PASS artifact (post-confirmation standardization):
+   - `reports/protocol-gate/activation-rehearsal-1771823534746.json`
+   - gate snapshot: `noHardStopErrors=true`, `sloPass=true`
+5. Code state anchor:
    - `f2ec132`
-5. Rehearsal profile notes:
+6. Rehearsal profile notes:
    - deterministic `ClientOffsetOutOfRange` classification is locked as non-retryable
    - adaptive downshift is enabled to prevent retry loops on invalid batch windows
-6. Locked baseline env (redacted-safe, no keys/paths):
+7. Locked baseline env (redacted-safe, no keys/paths):
    - `OPENJACK_REHEARSAL_ROUND_IDS=1771776441,1771776801,1771777601,1771778155,1771774597`
    - `OPENJACK_SUITE_STRESS_BATCH_LEN=3`
    - `OPENJACK_SUITE_STRESS_REMAINING_THRESHOLD=36`
    - `OPENJACK_RUNNER_FORCE_COMPLETE_REMAINING=40` (runner-only liveness override; no protocol behavior change)
+8. RPC confirmation standardization note:
+   - scripts use HTTP status polling (`getSignatureStatuses`) for confirmation (no `confirmTransaction`/Anchor `.rpc()` confirmation path).
 
 ## Required To Move To GO
 1. Keep batch-canonical path as activation baseline.

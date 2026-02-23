@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { classifyTier } from "../packages/shared/src/index.js";
 import { applyProfileDefaults, buildProfileFingerprint, validateProfileEnv } from "./profile-config.mjs";
 import { loadEnvLocal } from "./env-local.mjs";
+import { confirmSignatureByPolling } from "./lib/confirm-signature-status.mjs";
 
 loadEnvLocal();
 
@@ -303,14 +304,7 @@ async function signAndSend(unsignedTxBase64, buyerKeypair) {
     preflightCommitment: "confirmed",
   });
   lastTxSentAt = Date.now();
-  await connection.confirmTransaction(
-    {
-      signature: sig,
-      blockhash: latest.blockhash,
-      lastValidBlockHeight: latest.lastValidBlockHeight,
-    },
-    "confirmed",
-  );
+  await confirmSignatureByPolling(connection, sig);
   return sig;
 }
 

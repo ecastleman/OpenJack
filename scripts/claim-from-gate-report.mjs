@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { loadEnvLocal } from "./env-local.mjs";
+import { confirmSignatureByPolling } from "./lib/confirm-signature-status.mjs";
 
 loadEnvLocal();
 
@@ -72,14 +73,7 @@ async function signAndSend(unsignedTxBase64, buyer) {
     maxRetries: 3,
     preflightCommitment: "confirmed",
   });
-  await connection.confirmTransaction(
-    {
-      signature: sig,
-      blockhash: latest.blockhash,
-      lastValidBlockHeight: latest.lastValidBlockHeight,
-    },
-    "confirmed",
-  );
+  await confirmSignatureByPolling(connection, sig);
   return sig;
 }
 

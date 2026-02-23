@@ -15,6 +15,7 @@ import {
   DEFAULT_FORCE_COMPLETE_REMAINING,
   DEFAULT_MIN_NET_LAMPORTS,
 } from "./lib/count-batch-runner-policy.mjs";
+import { confirmSignatureByPolling } from "./lib/confirm-signature-status.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -59,6 +60,8 @@ const DEBUG_RPC_SHAPE = String(process.env.OPENJACK_RUNNER_DEBUG_RPC_SHAPE || "t
 const SIM_SIG_VERIFY = String(process.env.OPENJACK_RUNNER_SIM_SIG_VERIFY || "true").toLowerCase() !== "false";
 const SIM_FALLBACK_SIG_VERIFY_TRUE =
   String(process.env.OPENJACK_RUNNER_SIM_FALLBACK_SIG_VERIFY_TRUE || "true").toLowerCase() !== "false";
+const CONFIRM_POLL_MS = Number(process.env.OPENJACK_RUNNER_CONFIRM_POLL_MS || 800);
+const CONFIRM_TIMEOUT_MS = Number(process.env.OPENJACK_RUNNER_CONFIRM_TIMEOUT_MS || 90_000);
 
 if (!ROUND_ID) throw new Error("OPENJACK_BENCH_ROUND_ID (or READY_ROUND_ID) is required");
 if (BATCH_LEN <= 0) throw new Error("OPENJACK_COUNT_BATCH_LEN must be > 0");
@@ -363,6 +366,7 @@ async function main() {
         formatRunnerLine({
           event: "COUNT_BATCH_RUNNER_ERROR",
           attempt_id: attemptId,
+          attempt_seq: attemptSeq,
           round: ROUND_ID,
           class: "CountBatchOutOfBounds",
           policy: classifyRunnerError("CountBatchOutOfBounds"),
@@ -394,6 +398,7 @@ async function main() {
         event: "COUNT_BATCH_RUNNER",
         mode: "run",
         attempt_id: attemptId,
+        attempt_seq: attemptSeq,
         round: ROUND_ID,
         progress,
         total: ticketCountFrozen,
@@ -435,11 +440,12 @@ async function main() {
           || String(surface.message || "").includes("offset");
         const className = isOffsetRange ? "ClientOffsetOutOfRange" : (surface.className || "InstructionSerializationOutOfRange");
         console.log(
-          formatRunnerLine({
-            event: "COUNT_BATCH_RUNNER_ERROR",
-            attempt_id: attemptId,
-            round: ROUND_ID,
-            class: className,
+        formatRunnerLine({
+          event: "COUNT_BATCH_RUNNER_ERROR",
+          attempt_id: attemptId,
+          attempt_seq: attemptSeq,
+          round: ROUND_ID,
+          class: className,
             policy: classifyRunnerError(className),
             stage: "build",
             rpc_code: surface.rpcCode ?? "none",
@@ -489,6 +495,7 @@ async function main() {
           formatRunnerLine({
             event: "COUNT_BATCH_RUNNER_ERROR",
             attempt_id: attemptId,
+            attempt_seq: attemptSeq,
             round: ROUND_ID,
             class: surface.className,
             policy: classifyRunnerError(surface.className),
@@ -552,6 +559,7 @@ async function main() {
             formatRunnerLine({
               event: "COUNT_BATCH_RUNNER_ERROR",
               attempt_id: attemptId,
+              attempt_seq: attemptSeq,
               round: ROUND_ID,
               class: surface.className,
               policy: classifyRunnerError(surface.className),
@@ -592,6 +600,7 @@ async function main() {
           formatRunnerLine({
             event: "COUNT_BATCH_RUNNER_ERROR",
             attempt_id: attemptId,
+            attempt_seq: attemptSeq,
             round: ROUND_ID,
             class: surface.className,
             policy: classifyRunnerError(surface.className),
@@ -612,23 +621,17 @@ async function main() {
         throw Object.assign(error, { _handledStageError: true, _surface: surface });
       }
       try {
-        const conf = await connection.confirmTransaction(
-          {
-            signature: sig,
-            blockhash: latest.value.blockhash,
-            lastValidBlockHeight: latest.value.lastValidBlockHeight,
-          },
-          "confirmed",
-        );
-        if (conf?.value?.err) {
-          throw new Error(`confirm_err=${sanitizeValue(JSON.stringify(conf.value.err))}`);
-        }
+        await confirmSignatureByPolling(connection, sig, {
+          timeoutMs: CONFIRM_TIMEOUT_MS,
+          pollMs: CONFIRM_POLL_MS,
+        });
       } catch (error) {
         const surface = extractErrorSurface(error, "confirm");
         console.log(
           formatRunnerLine({
             event: "COUNT_BATCH_RUNNER_ERROR",
             attempt_id: attemptId,
+            attempt_seq: attemptSeq,
             round: ROUND_ID,
             class: surface.className,
             policy: classifyRunnerError(surface.className),
@@ -657,6 +660,7 @@ async function main() {
         formatRunnerLine({
           event: "COUNT_BATCH_RUNNER_TX",
           attempt_id: attemptId,
+          attempt_seq: attemptSeq,
           round: ROUND_ID,
           sig,
           progress,
@@ -680,7 +684,12 @@ async function main() {
             event: "COUNT_BATCH_RUNNER_ADJUST",
             round: ROUND_ID,
             attempt_id: attemptId,
+            attempt_seq: attemptSeq,
             class: errorClass,
+            adjust_handled: true,
+            resolved_class: "ClientOffsetOutOfRange",
+            terminal: false,
+            policy_override: "continue",
             action: "reduce_batch_len",
             from_batch_len: batchLen,
             to_batch_len: adaptiveMaxBatchLen,
@@ -699,6 +708,7 @@ async function main() {
           formatRunnerLine({
             event: "COUNT_BATCH_RUNNER_ERROR",
             attempt_id: attemptId,
+            attempt_seq: attemptSeq,
             round: ROUND_ID,
             class: errorClass,
             policy,

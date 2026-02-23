@@ -67,6 +67,10 @@ Suite aggregate:
 4. Latest 5-round PASS artifact with regression guard enabled:
    - `reports/protocol-gate/activation-rehearsal-suite-1771806831505.json`
    - gates: `roundsMeetMinimum=true`, `suiteSloPass=true`, `regressionGuardPass=true`
+5. Script-only ping-isolation rehearsal PASS artifact (post-confirmation standardization):
+   - `reports/protocol-gate/activation-rehearsal-1771823534746.json`
+   - round: `1771823445`
+   - gates: `guardPass=true`, `contractPass=true`, `noHardStopErrors=true`, `sloPass=true`
 
 ## Stabilized Execution Profile (Deterministic)
 1. `ClientOffsetOutOfRange` is a deterministic client construction/window error and is classified as non-retryable hard-stop for the attempted payload.
@@ -99,6 +103,11 @@ Rationale:
 1. Suite compares current p95 completion/stall against prior `latest-suite` artifact and fails on large regressions by default.
 2. Override only when intentionally accepted:
    - `OPENJACK_SUITE_ALLOW_SLO_REGRESSION=true`
+
+## RPC Confirmation Strategy (Locked)
+1. Script lane is standardized on HTTP status polling (`getSignatureStatuses`) for tx confirmation.
+2. Script lane no longer uses `confirmTransaction(...)` or Anchor `.rpc()` confirmation paths.
+3. If Alchemy shows `Unsupported method: ping` during an isolation window that runs only scripts, treat it as external/non-script client traffic and isolate by timestamp.
 
 ## Activation Contract Note
 After checklist freeze, only bug fixes should modify activation readiness surfaces (scripts/docs/thresholds).

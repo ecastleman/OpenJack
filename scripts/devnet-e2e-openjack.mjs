@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
+import { confirmSignatureByPolling } from "./lib/confirm-signature-status.mjs";
+import { sendAnchorMethodWithPolling } from "./lib/send-anchor-method.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -127,7 +129,7 @@ async function ensureFunds(connection, pubkey) {
   const balance = await connection.getBalance(pubkey, "confirmed");
   if (balance >= 0.5 * LAMPORTS_PER_SOL) return;
   const sig = await connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL);
-  await connection.confirmTransaction(sig, "confirmed");
+  await confirmSignatureByPolling(connection, sig);
 }
 
 async function assertRpcReachable(connection) {
@@ -163,14 +165,16 @@ async function maybeInitConfig(program, walletPk) {
     cadenceMaxGapSecs: 7 * 24 * 3600,
   };
 
-  const sig = await program.methods
-    .initConfig(args)
-    .accounts({
-      payer: walletPk,
-      config,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
+  const sig = await sendAnchorMethodWithPolling(
+    program.methods
+      .initConfig(args)
+      .accounts({
+        payer: walletPk,
+        config,
+        systemProgram: SystemProgram.programId,
+      }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
 
   console.log("initConfig", sig);
   return config;
@@ -199,39 +203,43 @@ async function run() {
 
   const roundExists = await connection.getAccountInfo(round, "confirmed");
   if (!roundExists) {
-    const sigCreate = await program.methods
-      .createRound({
-        roundId: new anchor.BN(ROUND_ID),
-        openTs: new anchor.BN(openTs),
-        closeTs: new anchor.BN(closeTs),
-        treeAddress: walletPk,
-      })
-      .accounts({
-        authority: walletPk,
-        config,
-        round,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
+    const sigCreate = await sendAnchorMethodWithPolling(
+      program.methods
+        .createRound({
+          roundId: new anchor.BN(ROUND_ID),
+          openTs: new anchor.BN(openTs),
+          closeTs: new anchor.BN(closeTs),
+          treeAddress: walletPk,
+        })
+        .accounts({
+          authority: walletPk,
+          config,
+          round,
+          systemProgram: SystemProgram.programId,
+        }),
+      { connection: program.provider.connection, signer: program.provider.wallet.payer },
+    );
     console.log("createRound", sigCreate);
   }
 
-  const sigBuy = await program.methods
-    .buyTickets({
-      tickets: [{ main: [1, 2, 3, 4, 5], bonus: 1 }],
-      oraclePriceMicroUsdPerSol: new anchor.BN(20_000_000),
-      oraclePublishTs: new anchor.BN(Math.floor(Date.now() / 1000)),
-    })
-    .accounts({
-      buyer: walletPk,
-      config,
-      round,
-      treasury: walletPk,
-      oracleFeed: walletPk,
-      userRoundStats: userRound,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
+  const sigBuy = await sendAnchorMethodWithPolling(
+    program.methods
+      .buyTickets({
+        tickets: [{ main: [1, 2, 3, 4, 5], bonus: 1 }],
+        oraclePriceMicroUsdPerSol: new anchor.BN(20_000_000),
+        oraclePublishTs: new anchor.BN(Math.floor(Date.now() / 1000)),
+      })
+      .accounts({
+        buyer: walletPk,
+        config,
+        round,
+        treasury: walletPk,
+        oracleFeed: walletPk,
+        userRoundStats: userRound,
+        systemProgram: SystemProgram.programId,
+      }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("buyTickets", sigBuy);
 
   console.log("waiting for closeTs...");
@@ -239,57 +247,68 @@ async function run() {
     await sleep(1000);
   }
 
-  const sigClose = await program.methods.closeRound().accounts({ round }).rpc();
+  const sigClose = await sendAnchorMethodWithPolling(
+    program.methods.closeRound().accounts({ round }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("closeRound", sigClose);
 
   const vrfRequest = Keypair.generate().publicKey;
-  const sigReq = await program.methods
-    .requestDraw({ vrfRequest })
-    .accounts({ config, round })
-    .rpc();
+  const sigReq = await sendAnchorMethodWithPolling(
+    program.methods
+      .requestDraw({ vrfRequest })
+      .accounts({ config, round }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("requestDraw", sigReq);
 
   const vrfSeed = crypto.createHash("sha256").update(`round-${ROUND_ID}`).digest("hex");
   const vrfResult = bytes32FromHex(vrfSeed);
-  const sigFulfill = await program.methods
-    .fulfillDraw({ vrfRequest, vrfResult })
-    .accounts({
-      config,
-      vrfCallbackAuthority: walletPk,
-      round,
-    })
-    .rpc();
+  const sigFulfill = await sendAnchorMethodWithPolling(
+    program.methods
+      .fulfillDraw({ vrfRequest, vrfResult })
+      .accounts({
+        config,
+        vrfCallbackAuthority: walletPk,
+        round,
+      }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("fulfillDraw", sigFulfill);
 
-  const sigBond = await program.methods
-    .postScannerBond()
-    .accounts({
-      scanner: walletPk,
-      config,
-      round,
-      scannerBond: bond,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
+  const sigBond = await sendAnchorMethodWithPolling(
+    program.methods
+      .postScannerBond()
+      .accounts({
+        scanner: walletPk,
+        config,
+        round,
+        scannerBond: bond,
+        systemProgram: SystemProgram.programId,
+      }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("postScannerBond", sigBond);
 
   const commitmentHash = bytes32FromHex(crypto.createHash("sha256").update(`commit-${ROUND_ID}`).digest("hex"));
   const rootHash = bytes32FromHex(crypto.createHash("sha256").update(`tier0-${ROUND_ID}`).digest("hex"));
-  const sigRoot = await program.methods
-    .publishWinnerRoot({
-      tier: 0,
-      rootHash,
-      winnerCount: 1,
-      observedTicketCount: 1,
-      commitmentHash,
-    })
-    .accounts({
-      scanner: walletPk,
-      config,
-      round,
-      scannerBond: bond,
-    })
-    .rpc();
+  const sigRoot = await sendAnchorMethodWithPolling(
+    program.methods
+      .publishWinnerRoot({
+        tier: 0,
+        rootHash,
+        winnerCount: 1,
+        observedTicketCount: 1,
+        commitmentHash,
+      })
+      .accounts({
+        scanner: walletPk,
+        config,
+        round,
+        scannerBond: bond,
+      }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("publishWinnerRoot", sigRoot);
 
   if (!WAIT_FOR_FINALIZE) {
@@ -301,42 +320,47 @@ async function run() {
   console.log("Waiting for settlement window to close (about 1 hour)...");
   await sleep(3605 * 1000);
 
-  const sigFinalize = await program.methods.finalizePrizes().accounts({ round }).rpc();
+  const sigFinalize = await sendAnchorMethodWithPolling(
+    program.methods.finalizePrizes().accounts({ round }),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("finalizePrizes", sigFinalize);
 
   const roundAccount = await program.account.round.fetch(round);
   const claimAmount = Number(roundAccount.tierPayoutPerWinner[0].toString());
 
-  const sigClaim = await program.methods
-    .claim({
-      leafIndex: 0,
-      tier: 0,
-      amount: new anchor.BN(claimAmount),
-      ticketOwner: walletPk,
-      compressionRoot: rootHash,
-      compressionLeaf: rootHash,
-      compressionIndex: 0,
-      ticketProofHash: ticketProofHash({
-        roundId: ROUND_ID,
-        treeAddress: walletPk,
+  const sigClaim = await sendAnchorMethodWithPolling(
+    program.methods
+      .claim({
         leafIndex: 0,
-        owner: walletPk,
-        proof: [rootHash],
-      }),
-      ticketProof: [rootHash],
-      winnerRootHash: rootHash,
-      winnerRootProof: [],
-    })
-    .accounts({
-      claimer: walletPk,
-      round,
-      claimRecord: pdaClaim(ROUND_ID, 0),
-      merkleTree: walletPk,
-      compressionProgram: COMPRESSION_PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
-    })
-    .remainingAccounts([{ pubkey: new PublicKey(Buffer.from(rootHash)), isSigner: false, isWritable: false }])
-    .rpc();
+        tier: 0,
+        amount: new anchor.BN(claimAmount),
+        ticketOwner: walletPk,
+        compressionRoot: rootHash,
+        compressionLeaf: rootHash,
+        compressionIndex: 0,
+        ticketProofHash: ticketProofHash({
+          roundId: ROUND_ID,
+          treeAddress: walletPk,
+          leafIndex: 0,
+          owner: walletPk,
+          proof: [rootHash],
+        }),
+        ticketProof: [rootHash],
+        winnerRootHash: rootHash,
+        winnerRootProof: [],
+      })
+      .accounts({
+        claimer: walletPk,
+        round,
+        claimRecord: pdaClaim(ROUND_ID, 0),
+        merkleTree: walletPk,
+        compressionProgram: COMPRESSION_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts([{ pubkey: new PublicKey(Buffer.from(rootHash)), isSigner: false, isWritable: false }]),
+    { connection: program.provider.connection, signer: program.provider.wallet.payer },
+  );
   console.log("claim", sigClaim);
 
   if (!WAIT_FOR_SWEEP) {
@@ -345,7 +369,7 @@ async function run() {
   }
 
   console.log("Sweep requires finalized_ts + 30 days; run later:");
-  console.log("program.methods.sweepWinnersToUnclaimed().accounts({ round }).rpc()");
+  console.log("program.methods.sweepWinnersToUnclaimed().accounts({ round }) (send via sendAnchorMethodWithPolling)");
 }
 
 run().catch((e) => {

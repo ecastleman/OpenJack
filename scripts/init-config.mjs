@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
+import { sendAnchorMethodWithPolling } from "./lib/send-anchor-method.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -80,26 +81,28 @@ async function main() {
   const cadenceMinGapSecs = Number(process.env.OPENJACK_CADENCE_MIN_GAP_SECS || 172_800);
   const cadenceMaxGapSecs = Number(process.env.OPENJACK_CADENCE_MAX_GAP_SECS || 345_600);
 
-  const sig = await program.methods
-    .initConfig({
-      treasuryPubkey,
-      officialScannerPubkey: scanner,
-      vrfCallbackAuthority,
-      scannerBondLamports: new anchor.BN(scannerBondLamports),
-      scannerSlashLamports: new anchor.BN(scannerSlashLamports),
-      solUsdOracle: oraclePubkey,
-      oracleMaxAgeSecs,
-      ticketPriceUsdCents,
-      finderFeeBps,
-      cadenceMinGapSecs,
-      cadenceMaxGapSecs,
-    })
-    .accounts({
-      payer: wallet.publicKey,
-      config,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
+  const sig = await sendAnchorMethodWithPolling(
+    program.methods
+      .initConfig({
+        treasuryPubkey,
+        officialScannerPubkey: scanner,
+        vrfCallbackAuthority,
+        scannerBondLamports: new anchor.BN(scannerBondLamports),
+        scannerSlashLamports: new anchor.BN(scannerSlashLamports),
+        solUsdOracle: oraclePubkey,
+        oracleMaxAgeSecs,
+        ticketPriceUsdCents,
+        finderFeeBps,
+        cadenceMinGapSecs,
+        cadenceMaxGapSecs,
+      })
+      .accounts({
+        payer: wallet.publicKey,
+        config,
+        systemProgram: SystemProgram.programId,
+      }),
+    { connection, signer: authority },
+  );
 
   console.log(`init_config sig=${sig}`);
   console.log(`config=${config.toBase58()}`);

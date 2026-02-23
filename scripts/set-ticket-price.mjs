@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
+import { sendAnchorMethodWithPolling } from "./lib/send-anchor-method.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -57,13 +58,15 @@ async function main() {
   }
 
   const config = deriveConfigPda(programId);
-  const sig = await program.methods
-    .setTicketPrice(TICKET_PRICE_USD_CENTS)
-    .accounts({
-      authority: wallet.publicKey,
-      config,
-    })
-    .rpc();
+  const sig = await sendAnchorMethodWithPolling(
+    program.methods
+      .setTicketPrice(TICKET_PRICE_USD_CENTS)
+      .accounts({
+        authority: wallet.publicKey,
+        config,
+      }),
+    { connection, signer: authority },
+  );
 
   console.log(`set_ticket_price sig=${sig}`);
   console.log(`ticket_price_usd_cents=${TICKET_PRICE_USD_CENTS}`);
@@ -73,4 +76,3 @@ main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });
-

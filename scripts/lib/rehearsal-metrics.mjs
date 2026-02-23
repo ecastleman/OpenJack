@@ -39,6 +39,43 @@ export function calcMaxRetryableBurst(rows) {
   return maxBurst;
 }
 
+function attemptKey(row) {
+  const attemptId = row?.attempt_id != null ? String(row.attempt_id) : "";
+  if (!attemptId) return "";
+  const attemptSeq = row?.attempt_seq != null ? String(row.attempt_seq) : "";
+  return `${attemptId}#${attemptSeq}`;
+}
+
+export function countTerminalHardStops(rows) {
+  const ordered = rows || [];
+  const handledOffsetAttempts = new Set();
+
+  for (const row of ordered) {
+    if (row?.event !== "COUNT_BATCH_RUNNER_ADJUST") continue;
+    const key = attemptKey(row);
+    if (!key) continue;
+    const handled = String(row?.adjust_handled ?? "").toLowerCase() === "true";
+    const resolvedClass = String(row?.resolved_class || row?.class || "");
+    if (handled && resolvedClass === "ClientOffsetOutOfRange") {
+      handledOffsetAttempts.add(key);
+    }
+  }
+
+  let hardStops = 0;
+  for (const row of ordered) {
+    if (row?.event !== "COUNT_BATCH_RUNNER_ERROR") continue;
+    if (row?.policy !== "hard_stop") continue;
+    if (String(row?.class || "") === "ClientOffsetOutOfRange") {
+      const key = attemptKey(row);
+      if (key && handledOffsetAttempts.has(key)) {
+        continue;
+      }
+    }
+    hardStops += 1;
+  }
+  return hardStops;
+}
+
 export function calcMaxStallWindowMs({ rows, startMs, endMs, initialProgress, finalProgress }) {
   const ordered = (rows || []).slice().sort((a, b) => Number(a?._ts || 0) - Number(b?._ts || 0));
   let maxStall = 0;

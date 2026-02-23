@@ -3,6 +3,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { loadEnvLocal } from "./env-local.mjs";
 import { applyProfileDefaults, buildProfileFingerprint, validateProfileEnv } from "./profile-config.mjs";
+import { sendAnchorMethodWithPolling } from "./lib/send-anchor-method.mjs";
 import {
   deriveConfigPda,
   deriveRoundPda,
@@ -121,28 +122,38 @@ async function stepRound(roundId) {
 
   if (!INGEST_ONLY) {
     if (status === 0 && now >= bnToNumber(round.closeTs)) {
-      const sig = await program.methods.closeRound().accounts({ round: roundPda }).rpc();
+      const sig = await sendAnchorMethodWithPolling(
+        program.methods.closeRound().accounts({ round: roundPda }),
+        { connection: program.provider.connection, signer: wallet.payer },
+      );
       console.log(`[keeper] closeRound round=${roundId} sig=${sig}`);
     } else if (status === 1) {
       const vrfRequest = Keypair.generate().publicKey;
-      const sig = await program.methods
-        .requestDraw({ vrfRequest })
-        .accounts({ config: configPda, round: roundPda })
-        .rpc();
+      const sig = await sendAnchorMethodWithPolling(
+        program.methods
+          .requestDraw({ vrfRequest })
+          .accounts({ config: configPda, round: roundPda }),
+        { connection: program.provider.connection, signer: wallet.payer },
+      );
       console.log(`[keeper] requestDraw round=${roundId} sig=${sig}`);
     } else if (status === 2 && AUTO_FULFILL) {
       const vrfRequest = round.vrfRequest;
-      const sig = await program.methods
-        .fulfillDraw({ vrfRequest, vrfResult: vrfResultForRound(roundId) })
-        .accounts({
-          config: configPda,
-          vrfCallbackAuthority: wallet.publicKey,
-          round: roundPda,
-        })
-        .rpc();
+      const sig = await sendAnchorMethodWithPolling(
+        program.methods
+          .fulfillDraw({ vrfRequest, vrfResult: vrfResultForRound(roundId) })
+          .accounts({
+            config: configPda,
+            vrfCallbackAuthority: wallet.publicKey,
+            round: roundPda,
+          }),
+        { connection: program.provider.connection, signer: wallet.payer },
+      );
       console.log(`[keeper] fulfillDraw round=${roundId} sig=${sig}`);
     } else if (status === 3 && now > bnToNumber(round.settleDeadlineTs)) {
-      const sig = await program.methods.finalizePrizes().accounts({ round: roundPda }).rpc();
+      const sig = await sendAnchorMethodWithPolling(
+        program.methods.finalizePrizes().accounts({ round: roundPda }),
+        { connection: program.provider.connection, signer: wallet.payer },
+      );
       console.log(`[keeper] finalizePrizes round=${roundId} sig=${sig}`);
     }
   } else {

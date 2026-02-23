@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
+import { confirmSignatureByPolling } from "./lib/confirm-signature-status.mjs";
 
 const scannerPkgJson = path.resolve(process.cwd(), "services/scanner/package.json");
 const scannerRequire = createRequire(scannerPkgJson);
@@ -125,29 +126,6 @@ function ensureTreeInitialized() {
   return { ...parsed, source: "init-cnft-tree" };
 }
 
-function extractTimedOutSignature(error) {
-  const message = String(error instanceof Error ? error.message : error);
-  const match = message.match(/signature\s+([1-9A-HJ-NP-Za-km-z]+)/i);
-  return match?.[1] || null;
-}
-
-async function rpcWithTimeoutTolerance(label, sendFn) {
-  try {
-    return { timedOut: false, signature: await sendFn() };
-  } catch (error) {
-    const message = String(error instanceof Error ? error.message : error);
-    if (
-      !message.includes("TransactionExpiredTimeoutError")
-      && !message.includes("Transaction was not confirmed")
-    ) {
-      throw error;
-    }
-    const signature = extractTimedOutSignature(error);
-    console.warn(`[prototype-freeze] ${label} timeout sig=${signature ?? "unknown"} (continuing)`);
-    return { timedOut: true, signature };
-  }
-}
-
 async function runWithRetries(label, fn, attempts = TX_MAX_ATTEMPTS, backoffMs = TX_BACKOFF_MS) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -170,6 +148,21 @@ async function sendMethodNoConfirm(methodBuilder, authority, connection) {
   tx.recentBlockhash = blockhash;
   tx.sign(authority);
   return connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 5 });
+}
+
+async function sendMethodWithPolling(methodBuilder, authority, connection) {
+  const sig = await sendMethodNoConfirm(methodBuilder, authority, connection);
+  try {
+    await confirmSignatureByPolling(connection, sig, {
+      timeoutMs: 90_000,
+      pollMs: 800,
+    });
+  } catch (error) {
+    const message = String(error instanceof Error ? error.message : error);
+    if (!message.includes("confirm_timeout_")) throw error;
+    console.warn(`[prototype-freeze] confirm timeout sig=${sig} (continuing)`);
+  }
+  return sig;
 }
 
 async function main() {
@@ -220,7 +213,7 @@ async function main() {
     const openTs = now + OPEN_OFFSET_SECS;
     const closeTs = now + CLOSE_IN_SECS;
     await runWithRetries("createRound", async () => {
-      const { signature } = await rpcWithTimeoutTolerance("createRound", () =>
+      const signature = await sendMethodWithPolling(
         program.methods
           .createRound({
             roundId: new BN(ROUND_ID),
@@ -233,8 +226,9 @@ async function main() {
             config: configPda,
             round: roundPda,
             systemProgram: SystemProgram.programId,
-          })
-          .rpc(),
+          }),
+        authority,
+        connection,
       );
       if (signature) {
         console.log(`[prototype-freeze] createRound sig=${signature} roundId=${ROUND_ID}`);
@@ -321,8 +315,10 @@ async function main() {
 
   if (Number(round.status) === 0) {
     await runWithRetries("closeRound", async () => {
-      const { signature } = await rpcWithTimeoutTolerance("closeRound", () =>
-        program.methods.closeRound().accounts({ round: roundPda }).rpc(),
+      const signature = await sendMethodWithPolling(
+        program.methods.closeRound().accounts({ round: roundPda }),
+        authority,
+        connection,
       );
       if (signature) {
         console.log(`[prototype-freeze] closeRound sig=${signature}`);
@@ -338,8 +334,10 @@ async function main() {
   round = await program.account.round.fetch(roundPda);
   if (Number(round.status) === 1) {
     await runWithRetries("beginFreeze", async () => {
-      const { signature } = await rpcWithTimeoutTolerance("beginFreeze", () =>
-        program.methods.beginFreeze().accounts({ round: roundPda }).rpc(),
+      const signature = await sendMethodWithPolling(
+        program.methods.beginFreeze().accounts({ round: roundPda }),
+        authority,
+        connection,
       );
       if (signature) {
         console.log(`[prototype-freeze] beginFreeze sig=${signature}`);
@@ -353,8 +351,10 @@ async function main() {
   }
 
   await runWithRetries("freezeTicketSet", async () => {
-    const { signature: freezeSig } = await rpcWithTimeoutTolerance("freezeTicketSet", () =>
-      program.methods.freezeTicketSet().accounts({ round: roundPda }).rpc(),
+    const freezeSig = await sendMethodWithPolling(
+      program.methods.freezeTicketSet().accounts({ round: roundPda }),
+      authority,
+      connection,
     );
     if (freezeSig) {
       console.log(`[prototype-freeze] freezeTicketSet sig=${freezeSig}`);

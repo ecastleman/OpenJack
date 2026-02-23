@@ -70,6 +70,12 @@ pub struct Round {
     pub treasury_paid_lamports: u64,
     pub jackpot_pool_balance: u64,
     pub tier_pool_balances: [u64; 5],
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub bounty_pool_balance: u64,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub bounty_pool_initial: u64,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub bounty_distributed_so_far: u64,
     pub winners_pool_balance: u64,
     pub unclaimed_pool_balance: u64,
     pub winning_main: [u8; 5],
@@ -117,6 +123,8 @@ pub struct Round {
     pub count_last_result_code: u16,
     #[cfg(feature = "canonical-freeze-prototype")]
     pub count_last_result_count: u32,
+    #[cfg(feature = "canonical-freeze-prototype")]
+    pub count_last_reward_paid: u64,
     pub bump: u8,
 }
 

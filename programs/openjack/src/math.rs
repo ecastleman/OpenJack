@@ -5,6 +5,7 @@ use anchor_lang::prelude::Result;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PurchaseSplit {
     pub treasury: u64,
+    pub bounty: u64,
     pub jackpot: u64,
     pub lower_total: u64,
     pub lower_tiers: [u64; 5],
@@ -13,6 +14,7 @@ pub struct PurchaseSplit {
 
 pub fn split_ticket_revenue(total_lamports: u64) -> PurchaseSplit {
     let treasury = total_lamports.saturating_mul(TREASURY_BPS as u64) / BPS_DENOMINATOR;
+    let bounty = total_lamports.saturating_mul(BOUNTY_BPS as u64) / BPS_DENOMINATOR;
     let jackpot = total_lamports.saturating_mul(JACKPOT_BPS as u64) / BPS_DENOMINATOR;
     let lower_total = total_lamports.saturating_mul(LOWER_POOL_BPS as u64) / BPS_DENOMINATOR;
 
@@ -23,6 +25,7 @@ pub fn split_ticket_revenue(total_lamports: u64) -> PurchaseSplit {
     let t2_bonus = lower_total.saturating_mul(LOWER_T2_BONUS_BPS as u64) / BPS_DENOMINATOR;
 
     let allocated = treasury
+        .saturating_add(bounty)
         .saturating_add(jackpot)
         .saturating_add(t5_only)
         .saturating_add(t4_bonus)
@@ -32,6 +35,7 @@ pub fn split_ticket_revenue(total_lamports: u64) -> PurchaseSplit {
 
     PurchaseSplit {
         treasury,
+        bounty,
         jackpot,
         lower_total,
         lower_tiers: [t5_only, t4_bonus, t4_only, t3_bonus, t2_bonus],
@@ -67,8 +71,11 @@ mod tests {
     fn split_does_not_over_allocate() {
         let total = 1_000_000_u64;
         let split = split_ticket_revenue(total);
-        let allocated =
-            split.treasury + split.jackpot + split.lower_tiers.iter().sum::<u64>() + split.dust;
+        let allocated = split.treasury
+            + split.bounty
+            + split.jackpot
+            + split.lower_tiers.iter().sum::<u64>()
+            + split.dust;
         assert_eq!(allocated, total);
     }
 

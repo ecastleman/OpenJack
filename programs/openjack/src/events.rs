@@ -74,6 +74,7 @@ pub struct CountBatchObserved {
     pub processed: u32,
     pub total: u32,
     pub remaining: u32,
+    pub reward_paid: u64,
     pub last_result_code: u16,
     pub last_result_count: u32,
     pub accepted_batches: u32,

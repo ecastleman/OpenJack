@@ -17,6 +17,7 @@ pub mod errors;
 pub mod events;
 pub mod instructions;
 pub mod math;
+pub mod solvency;
 pub mod state;
 
 use instructions::*;

@@ -73,9 +73,15 @@ async function main() {
   const pct = total > 0 ? ((processed / total) * 100).toFixed(2) : "0.00";
   const lastResult = mapResultCode(round.countLastResultCode);
   const resultCount = Number(round.countLastResultCount?.toString?.() ?? 0);
+  const lastRewardPaid = Number(round.countLastRewardPaid?.toString?.() ?? 0);
+  const bountyDistributed = Number(round.bountyDistributedSoFar?.toString?.() ?? 0);
+  const bountyInitial = Number(round.bountyPoolInitial?.toString?.() ?? 0);
+  const bountyRemaining = Number(round.bountyPoolBalance?.toString?.() ?? 0);
+  const bountyPct =
+    bountyInitial > 0 ? ((bountyDistributed / bountyInitial) * 100).toFixed(2) : "0.00";
 
   console.log(
-    `COUNTING: ${processed}/${total} (${pct}%) remaining=${remaining} lastResult=${lastResult} resultCount=${resultCount}`,
+    `COUNTING: ${processed}/${total} (${pct}%) remaining=${remaining} lastResult=${lastResult} resultCount=${resultCount} rewardPaid=${lastRewardPaid} bounty=${bountyDistributed}/${bountyInitial} (${bountyPct}%) bountyRemaining=${bountyRemaining}`,
   );
 }
 

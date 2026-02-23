@@ -112,4 +112,10 @@ pub enum OpenJackError {
     FastPathVerifierPubkeyMismatch,
     #[msg("Fast-path verifier message mismatch")]
     FastPathVerifierMessageMismatch,
+    #[msg("Count-batch bounty payout would violate round rent floor")]
+    CountBatchBountyRentViolation,
+    #[msg("Count-batch bounty payout recipient is invalid")]
+    CountBatchBountyRecipientInvalid,
+    #[msg("Round solvency floor would be violated")]
+    RoundSolvencyFloorViolated,
 }

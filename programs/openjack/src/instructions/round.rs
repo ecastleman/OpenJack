@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash::hashv;
 #[cfg(feature = "canonical-freeze-prototype")]
 use anchor_lang::solana_program::ed25519_program;
+use anchor_lang::solana_program::hash::hashv;
 #[cfg(feature = "canonical-freeze-prototype")]
 use anchor_lang::solana_program::instruction::Instruction;
 #[cfg(feature = "canonical-freeze-prototype")]
@@ -9,13 +9,17 @@ use anchor_lang::solana_program::sysvar::instructions::{
     load_current_index_checked, load_instruction_at_checked,
 };
 
-use crate::constants::SETTLEMENT_WINDOW_SECS;
+#[cfg(feature = "canonical-freeze-prototype")]
+use crate::constants::BPS_DENOMINATOR;
 #[cfg(feature = "canonical-freeze-prototype")]
 use crate::constants::PROTOTYPE_COUNT_BATCH_MAX_LEN;
+use crate::constants::SETTLEMENT_WINDOW_SECS;
 use crate::errors::OpenJackError;
-use crate::events::{DrawFulfilled, RoundStatusChanged};
 #[cfg(feature = "canonical-freeze-prototype")]
 use crate::events::CountBatchObserved;
+use crate::events::{DrawFulfilled, RoundStatusChanged};
+#[cfg(feature = "canonical-freeze-prototype")]
+use crate::solvency::{assert_round_solvency_floor, required_settlement_reserve};
 use crate::state::{LotteryConfig, Round, RoundStatus};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -81,6 +85,8 @@ pub struct FreezeTicketSet<'info> {
 #[cfg(feature = "canonical-freeze-prototype")]
 #[derive(Accounts)]
 pub struct CountBatch<'info> {
+    #[account(mut)]
+    pub caller: Signer<'info>,
     #[account(mut)]
     pub round: Account<'info, Round>,
 }
@@ -164,6 +170,10 @@ pub fn create_round(ctx: Context<CreateRound>, args: CreateRoundArgs) -> Result<
         round.count_batches_noop_replay = 0;
         round.count_last_result_code = 0;
         round.count_last_result_count = 0;
+        round.count_last_reward_paid = 0;
+        round.bounty_pool_balance = 0;
+        round.bounty_pool_initial = 0;
+        round.bounty_distributed_so_far = 0;
     }
     round.bump = ctx.bumps.round;
     Ok(())
@@ -227,14 +237,31 @@ pub fn count_batch(ctx: Context<CountBatch>, args: CountBatchArgs) -> Result<()>
     let round = &mut ctx.accounts.round;
     let now = Clock::get()?.unix_timestamp;
     let outcome = apply_count_batch(round, &args)?;
+    if outcome.reward_paid > 0 {
+        let next_undistributed_bounty = round
+            .bounty_pool_balance
+            .checked_sub(outcome.reward_paid)
+            .ok_or(OpenJackError::MathOverflow)?;
+        let next_settlement_reserve = required_settlement_reserve(round)?;
+        pay_count_batch_bounty(
+            round,
+            &ctx.accounts.caller.to_account_info(),
+            outcome.reward_paid,
+            next_undistributed_bounty,
+            next_settlement_reserve,
+        )?;
+        apply_batch_bounty_accounting(round, outcome.reward_paid)?;
+    }
     let remaining = round
         .ticket_count_frozen
         .saturating_sub(round.count_progress_index);
+    round.count_last_reward_paid = outcome.reward_paid;
     emit!(CountBatchObserved {
         round_id: round.round_id,
         processed: round.count_progress_index,
         total: round.ticket_count_frozen,
         remaining,
+        reward_paid: outcome.reward_paid,
         last_result_code: outcome.result_code,
         last_result_count: round.count_last_result_count,
         accepted_batches: round.count_batches_accepted,
@@ -262,7 +289,10 @@ pub fn finalize_counts_fast_path(
 pub fn request_draw(ctx: Context<RequestDraw>, args: RequestDrawArgs) -> Result<()> {
     let round = &mut ctx.accounts.round;
     let now = Clock::get()?.unix_timestamp;
-    require!(can_request_draw_from_status(round.status), OpenJackError::InvalidRoundState);
+    require!(
+        can_request_draw_from_status(round.status),
+        OpenJackError::InvalidRoundState
+    );
     require!(now >= round.close_ts, OpenJackError::RoundNotClosable);
     require!(
         args.vrf_request != Pubkey::default(),
@@ -500,7 +530,10 @@ fn verify_prototype_ticket_membership(
 
 #[cfg(feature = "canonical-freeze-prototype")]
 #[cfg(test)]
-fn derive_prototype_ticket_membership_proof(round: &Round, leaf_index: u32) -> Option<Vec<[u8; 32]>> {
+fn derive_prototype_ticket_membership_proof(
+    round: &Round,
+    leaf_index: u32,
+) -> Option<Vec<[u8; 32]>> {
     if leaf_index >= round.ticket_count_frozen {
         return None;
     }
@@ -566,6 +599,8 @@ fn apply_prototype_freeze(round: &mut Round, now: i64) -> Result<bool> {
         round.leaf_start_index = leaf_start_index;
         round.leaf_end_index = leaf_end_index;
         round.freeze_committed_ts = now;
+        round.bounty_pool_initial = round.bounty_pool_balance;
+        round.bounty_distributed_so_far = 0;
     }
 
     Ok(round.status != RoundStatus::ClosedFrozen as u8)
@@ -575,11 +610,90 @@ fn apply_prototype_freeze(round: &mut Round, now: i64) -> Result<bool> {
 const COUNT_RESULT_ACCEPTED: u16 = 1;
 #[cfg(feature = "canonical-freeze-prototype")]
 const COUNT_RESULT_NOOP_REPLAY: u16 = 2;
+#[cfg(feature = "canonical-freeze-prototype")]
+const BOUNTY_DISTRIBUTION_BPS: u64 = 9_900;
 
 #[cfg(feature = "canonical-freeze-prototype")]
 #[derive(Debug)]
 struct CountBatchOutcome {
     result_code: u16,
+    reward_paid: u64,
+}
+
+#[cfg(feature = "canonical-freeze-prototype")]
+fn compute_batch_bounty_reward(round: &Round, delta_progress: u32) -> Result<u64> {
+    if delta_progress == 0 || round.ticket_count_frozen == 0 || round.bounty_pool_initial == 0 {
+        return Ok(0);
+    }
+
+    let max_distributable = round
+        .bounty_pool_initial
+        .checked_mul(BOUNTY_DISTRIBUTION_BPS)
+        .and_then(|v| v.checked_div(BPS_DENOMINATOR))
+        .ok_or(OpenJackError::MathOverflow)?;
+    let reward_per_ticket = max_distributable
+        .checked_div(round.ticket_count_frozen as u64)
+        .ok_or(OpenJackError::MathOverflow)?;
+    let raw_reward = reward_per_ticket
+        .checked_mul(delta_progress as u64)
+        .ok_or(OpenJackError::MathOverflow)?;
+    let remaining_distributable = max_distributable
+        .checked_sub(round.bounty_distributed_so_far)
+        .ok_or(OpenJackError::MathOverflow)?;
+    let reward = raw_reward.min(remaining_distributable);
+    Ok(reward)
+}
+
+#[cfg(feature = "canonical-freeze-prototype")]
+fn apply_batch_bounty_accounting(round: &mut Round, reward: u64) -> Result<()> {
+    if reward == 0 {
+        return Ok(());
+    }
+
+    round.bounty_pool_balance = round
+        .bounty_pool_balance
+        .checked_sub(reward)
+        .ok_or(OpenJackError::MathOverflow)?;
+    round.bounty_distributed_so_far = round
+        .bounty_distributed_so_far
+        .checked_add(reward)
+        .ok_or(OpenJackError::MathOverflow)?;
+    Ok(())
+}
+
+#[cfg(feature = "canonical-freeze-prototype")]
+fn pay_count_batch_bounty(
+    round: &Account<Round>,
+    recipient: &AccountInfo,
+    reward: u64,
+    next_undistributed_bounty: u64,
+    next_settlement_reserve: u64,
+) -> Result<()> {
+    if reward == 0 {
+        return Ok(());
+    }
+    require!(
+        *recipient.key != Pubkey::default(),
+        OpenJackError::CountBatchBountyRecipientInvalid
+    );
+    let round_info = round.to_account_info();
+    assert_round_solvency_floor(
+        round,
+        reward,
+        next_undistributed_bounty,
+        next_settlement_reserve,
+    )?;
+    let round_balance = **round_info.try_borrow_lamports()?;
+    let post_balance = round_balance
+        .checked_sub(reward)
+        .ok_or(OpenJackError::InsufficientPoolBalance)?;
+
+    let recipient_balance = recipient.lamports();
+    **round_info.try_borrow_mut_lamports()? = post_balance;
+    **recipient.try_borrow_mut_lamports()? = recipient_balance
+        .checked_add(reward)
+        .ok_or(OpenJackError::MathOverflow)?;
+    Ok(())
 }
 
 #[cfg(feature = "canonical-freeze-prototype")]
@@ -632,7 +746,10 @@ fn apply_count_batch(round: &mut Round, args: &CountBatchArgs) -> Result<CountBa
     );
 
     if args.start_index < round.count_progress_index {
-        require!(round.count_last_batch_set, OpenJackError::CountReplayMismatch);
+        require!(
+            round.count_last_batch_set,
+            OpenJackError::CountReplayMismatch
+        );
         require!(
             round.count_last_batch_start == args.start_index
                 && round.count_last_batch_len == args.batch_len
@@ -646,9 +763,12 @@ fn apply_count_batch(round: &mut Round, args: &CountBatchArgs) -> Result<CountBa
         set_count_last_result(round, COUNT_RESULT_NOOP_REPLAY)?;
         return Ok(CountBatchOutcome {
             result_code: COUNT_RESULT_NOOP_REPLAY,
+            reward_paid: 0,
         });
     }
 
+    let prior_progress_index = round.count_progress_index;
+    let was_finalized = round.count_finalized;
     round.count_progress_index = batch_end;
     round.count_last_batch_set = true;
     round.count_last_batch_start = args.start_index;
@@ -658,12 +778,21 @@ fn apply_count_batch(round: &mut Round, args: &CountBatchArgs) -> Result<CountBa
         .count_batches_accepted
         .checked_add(1)
         .ok_or(OpenJackError::MathOverflow)?;
+    let mut reward_paid = 0u64;
+    if !was_finalized {
+        let delta_progress = round
+            .count_progress_index
+            .checked_sub(prior_progress_index)
+            .ok_or(OpenJackError::MathOverflow)?;
+        reward_paid = compute_batch_bounty_reward(round, delta_progress)?;
+    }
     set_count_last_result(round, COUNT_RESULT_ACCEPTED)?;
     if round.count_progress_index == round.ticket_count_frozen {
         round.count_finalized = true;
     }
     Ok(CountBatchOutcome {
         result_code: COUNT_RESULT_ACCEPTED,
+        reward_paid,
     })
 }
 
@@ -780,7 +909,10 @@ fn derive_mock_proof_digest(mock_public_inputs: [u8; 32]) -> [u8; 32] {
 }
 
 #[cfg(feature = "canonical-freeze-prototype")]
-fn validate_fast_path_mock_interface(round: &Round, args: &FinalizeCountsFastPathArgs) -> Result<()> {
+fn validate_fast_path_mock_interface(
+    round: &Round,
+    args: &FinalizeCountsFastPathArgs,
+) -> Result<()> {
     let expected_inputs = derive_mock_public_inputs_digest(
         round.round_id,
         round.ticket_set_root,
@@ -1054,7 +1186,9 @@ mod tests {
     #[cfg(feature = "canonical-freeze-prototype")]
     #[test]
     fn request_draw_status_gate_accepts_closed_frozen_in_prototype() {
-        assert!(can_request_draw_from_status(RoundStatus::ClosedFrozen as u8));
+        assert!(can_request_draw_from_status(
+            RoundStatus::ClosedFrozen as u8
+        ));
     }
 
     #[cfg(feature = "canonical-freeze-prototype")]
@@ -1090,6 +1224,9 @@ mod tests {
             treasury_paid_lamports: 0,
             jackpot_pool_balance: 0,
             tier_pool_balances: [0; 5],
+            bounty_pool_balance: 0,
+            bounty_pool_initial: 0,
+            bounty_distributed_so_far: 0,
             winners_pool_balance: 0,
             unclaimed_pool_balance: 0,
             winning_main: [0; 5],
@@ -1120,6 +1257,7 @@ mod tests {
             count_batches_noop_replay: 0,
             count_last_result_code: 0,
             count_last_result_count: 0,
+            count_last_reward_paid: 0,
             bump: 0,
         }
     }
@@ -1159,6 +1297,14 @@ mod tests {
     }
 
     #[cfg(feature = "canonical-freeze-prototype")]
+    fn apply_count_batch_with_bounty(round: &mut Round, args: &CountBatchArgs) -> CountBatchOutcome {
+        let outcome = apply_count_batch(round, args).expect("count_batch should succeed");
+        apply_batch_bounty_accounting(round, outcome.reward_paid)
+            .expect("bounty accounting should apply");
+        outcome
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
     fn fast_path_args(
         round: &Round,
         tier_winner_counts: [u32; 6],
@@ -1193,6 +1339,7 @@ mod tests {
     #[test]
     fn apply_prototype_freeze_commits_then_is_idempotent_on_retry() {
         let mut round = prototype_round(RoundStatus::ClosedPendingFreeze);
+        round.bounty_pool_balance = 777;
         let changed = apply_prototype_freeze(&mut round, 1_700_000_010).unwrap();
         assert!(changed);
         assert!(round.freeze_committed);
@@ -1200,6 +1347,8 @@ mod tests {
         assert_eq!(round.ticket_count_frozen, round.ticket_count);
         assert_eq!(round.leaf_start_index, 0);
         assert_eq!(round.leaf_end_index, round.ticket_count);
+        assert_eq!(round.bounty_pool_initial, 777);
+        assert_eq!(round.bounty_distributed_so_far, 0);
         let committed_root = round.ticket_set_root;
         let committed_ts = round.freeze_committed_ts;
 
@@ -1237,12 +1386,9 @@ mod tests {
     #[cfg(feature = "canonical-freeze-prototype")]
     #[test]
     fn begin_freeze_validation_rejects_before_close() {
-        let err = validate_begin_freeze_state(
-            RoundStatus::Closed as u8,
-            1_700_000_000,
-            1_700_000_001,
-        )
-        .unwrap_err();
+        let err =
+            validate_begin_freeze_state(RoundStatus::Closed as u8, 1_700_000_000, 1_700_000_001)
+                .unwrap_err();
         assert!(err.to_string().contains("RoundNotClosable"));
     }
 
@@ -1316,15 +1462,27 @@ mod tests {
         caller_b_first.status = RoundStatus::ClosedFrozen as u8;
         let _ = apply_prototype_freeze(&mut caller_b_first, 1_700_000_010).unwrap();
 
-        assert_eq!(caller_a_first.freeze_committed, caller_b_first.freeze_committed);
-        assert_eq!(caller_a_first.ticket_set_root, caller_b_first.ticket_set_root);
+        assert_eq!(
+            caller_a_first.freeze_committed,
+            caller_b_first.freeze_committed
+        );
+        assert_eq!(
+            caller_a_first.ticket_set_root,
+            caller_b_first.ticket_set_root
+        );
         assert_eq!(
             caller_a_first.ticket_count_frozen,
             caller_b_first.ticket_count_frozen
         );
-        assert_eq!(caller_a_first.leaf_start_index, caller_b_first.leaf_start_index);
+        assert_eq!(
+            caller_a_first.leaf_start_index,
+            caller_b_first.leaf_start_index
+        );
         assert_eq!(caller_a_first.leaf_end_index, caller_b_first.leaf_end_index);
-        assert_eq!(caller_a_first.freeze_attempts, caller_b_first.freeze_attempts);
+        assert_eq!(
+            caller_a_first.freeze_attempts,
+            caller_b_first.freeze_attempts
+        );
     }
 
     #[cfg(feature = "canonical-freeze-prototype")]
@@ -1511,6 +1669,172 @@ mod tests {
         apply_count_batch(&mut round, &c).unwrap();
         assert_eq!(round.count_progress_index, 7);
         assert!(round.count_finalized);
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    fn assert_bounty_conservation(round: &Round) {
+        let distributed_plus_carry = round.bounty_distributed_so_far + round.bounty_pool_balance;
+        assert_eq!(distributed_plus_carry, round.bounty_pool_initial);
+        assert!(distributed_plus_carry <= round.bounty_pool_initial);
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    #[test]
+    fn count_batch_bounty_conservation_is_monotonic_per_transition() {
+        let mut round = prototype_round(RoundStatus::ClosedFrozen);
+        round.freeze_committed = true;
+        round.ticket_count_frozen = 6;
+        round.bounty_pool_balance = 1_000;
+        round.bounty_pool_initial = 1_000;
+        commit_test_frozen_root(&mut round);
+
+        assert_bounty_conservation(&round);
+        let mut prior_distributed = round.bounty_distributed_so_far;
+
+        for (start, len) in [(0, 2), (2, 2), (4, 2)] {
+            let args = batch_args(&round, start, len);
+            apply_count_batch_with_bounty(&mut round, &args);
+            assert_bounty_conservation(&round);
+            assert!(round.bounty_distributed_so_far >= prior_distributed);
+            prior_distributed = round.bounty_distributed_so_far;
+        }
+        assert!(round.count_finalized);
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    #[test]
+    fn count_batch_bounty_rounding_on_last_batch_never_overpays() {
+        let mut round = prototype_round(RoundStatus::ClosedFrozen);
+        round.freeze_committed = true;
+        round.ticket_count_frozen = 3;
+        round.bounty_pool_balance = 101;
+        round.bounty_pool_initial = 101;
+        commit_test_frozen_root(&mut round);
+
+        let first = batch_args(&round, 0, 1);
+        apply_count_batch_with_bounty(&mut round, &first);
+        let second = batch_args(&round, 1, 2);
+        apply_count_batch_with_bounty(&mut round, &second);
+
+        let max_distributable =
+            round.bounty_pool_initial * BOUNTY_DISTRIBUTION_BPS / BPS_DENOMINATOR;
+        assert!(round.bounty_distributed_so_far <= max_distributable);
+        assert_eq!(round.bounty_distributed_so_far, 99);
+        assert_eq!(round.bounty_pool_balance, 2);
+        assert_bounty_conservation(&round);
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    #[test]
+    fn count_batch_noop_replay_pays_zero_bounty() {
+        let mut round = prototype_round(RoundStatus::ClosedFrozen);
+        round.freeze_committed = true;
+        round.ticket_count_frozen = 5;
+        round.bounty_pool_balance = 500;
+        round.bounty_pool_initial = 500;
+        commit_test_frozen_root(&mut round);
+
+        let args = batch_args(&round, 0, 2);
+        apply_count_batch_with_bounty(&mut round, &args);
+        let distributed_after_accept = round.bounty_distributed_so_far;
+        let bounty_after_accept = round.bounty_pool_balance;
+        apply_count_batch_with_bounty(&mut round, &args);
+
+        assert_eq!(round.bounty_distributed_so_far, distributed_after_accept);
+        assert_eq!(round.bounty_pool_balance, bounty_after_accept);
+        assert_bounty_conservation(&round);
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    #[test]
+    fn partial_batch_then_fast_finalize_blocks_additional_bounty() {
+        let mut round = prototype_round(RoundStatus::ClosedFrozen);
+        round.freeze_committed = true;
+        round.ticket_count_frozen = 6;
+        round.bounty_pool_balance = 900;
+        round.bounty_pool_initial = 900;
+        round.winning_main = [2, 4, 6, 8, 10];
+        round.winning_bonus = 3;
+        commit_test_frozen_root(&mut round);
+
+        let partial = batch_args(&round, 0, 2);
+        apply_count_batch_with_bounty(&mut round, &partial);
+        let distributed_before_finalize = round.bounty_distributed_so_far;
+        let balance_before_finalize = round.bounty_pool_balance;
+
+        let fast_args = fast_path_args(&round, [3, 2, 1, 0, 0, 0], true);
+        apply_finalize_counts_fast_path(&mut round, &fast_args).unwrap();
+        assert!(round.count_finalized);
+
+        let replay = batch_args(&round, 0, 2);
+        let replay_outcome = apply_count_batch_with_bounty(&mut round, &replay);
+        assert_eq!(replay_outcome.result_code, COUNT_RESULT_NOOP_REPLAY);
+        assert_eq!(round.bounty_distributed_so_far, distributed_before_finalize);
+        assert_eq!(round.bounty_pool_balance, balance_before_finalize);
+
+        let new_range = batch_args(&round, 2, 1);
+        let err = apply_count_batch(&mut round, &new_range).unwrap_err();
+        assert!(err.to_string().contains("CountReplayMismatch"));
+        assert_eq!(round.bounty_distributed_so_far, distributed_before_finalize);
+        assert_eq!(round.bounty_pool_balance, balance_before_finalize);
+        assert_bounty_conservation(&round);
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    #[test]
+    fn micro_batch_reward_scales_with_delta_progress() {
+        let mut one_then_one = prototype_round(RoundStatus::ClosedFrozen);
+        one_then_one.freeze_committed = true;
+        one_then_one.ticket_count_frozen = 10;
+        one_then_one.bounty_pool_balance = 1_000;
+        one_then_one.bounty_pool_initial = 1_000;
+        commit_test_frozen_root(&mut one_then_one);
+
+        let first = batch_args(&one_then_one, 0, 1);
+        apply_count_batch_with_bounty(&mut one_then_one, &first);
+        let second = batch_args(&one_then_one, 1, 1);
+        apply_count_batch_with_bounty(&mut one_then_one, &second);
+
+        let mut two_once = prototype_round(RoundStatus::ClosedFrozen);
+        two_once.freeze_committed = true;
+        two_once.ticket_count_frozen = 10;
+        two_once.bounty_pool_balance = 1_000;
+        two_once.bounty_pool_initial = 1_000;
+        commit_test_frozen_root(&mut two_once);
+
+        let combined = batch_args(&two_once, 0, 2);
+        apply_count_batch_with_bounty(&mut two_once, &combined);
+
+        assert_eq!(
+            one_then_one.bounty_distributed_so_far,
+            two_once.bounty_distributed_so_far
+        );
+        assert_eq!(
+            one_then_one.bounty_pool_balance,
+            two_once.bounty_pool_balance
+        );
+        assert_bounty_conservation(&one_then_one);
+        assert_bounty_conservation(&two_once);
+    }
+
+    #[cfg(feature = "canonical-freeze-prototype")]
+    #[test]
+    fn count_batch_reward_paid_reflects_delta_progress() {
+        let mut round = prototype_round(RoundStatus::ClosedFrozen);
+        round.freeze_committed = true;
+        round.ticket_count_frozen = 10;
+        round.bounty_pool_balance = 1_000;
+        round.bounty_pool_initial = 1_000;
+        commit_test_frozen_root(&mut round);
+
+        let args = batch_args(&round, 0, 2);
+        let accepted = apply_count_batch(&mut round, &args).unwrap();
+        assert_eq!(accepted.result_code, COUNT_RESULT_ACCEPTED);
+        assert_eq!(accepted.reward_paid, 198);
+
+        let replay = apply_count_batch(&mut round, &args).unwrap();
+        assert_eq!(replay.result_code, COUNT_RESULT_NOOP_REPLAY);
+        assert_eq!(replay.reward_paid, 0);
     }
 
     #[cfg(feature = "canonical-freeze-prototype")]

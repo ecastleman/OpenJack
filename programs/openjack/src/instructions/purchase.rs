@@ -168,6 +168,13 @@ pub fn buy_tickets<'info>(
         .jackpot_pool_balance
         .checked_add(jackpot_total)
         .ok_or(OpenJackError::MathOverflow)?;
+    #[cfg(feature = "canonical-freeze-prototype")]
+    {
+        round.bounty_pool_balance = round
+            .bounty_pool_balance
+            .checked_add(split.bounty)
+            .ok_or(OpenJackError::MathOverflow)?;
+    }
     for (i, amount) in split.lower_tiers.iter().enumerate() {
         round.tier_pool_balances[i] = round.tier_pool_balances[i]
             .checked_add(*amount)
@@ -221,10 +228,7 @@ fn parse_cnft_accounts<'info>(
     remaining: &[AccountInfo<'info>],
     expected_tree_address: Pubkey,
 ) -> Result<CnftMintAccounts<'info>> {
-    require!(
-        remaining.len() >= 5,
-        OpenJackError::CnftMintAccountsInvalid
-    );
+    require!(remaining.len() >= 5, OpenJackError::CnftMintAccountsInvalid);
 
     let merkle_tree = remaining[0].clone();
     let tree_config = remaining[1].clone();

@@ -5,6 +5,9 @@ use spl_account_compression::program::SplAccountCompression;
 use crate::constants::WINNERS_CLAIM_WINDOW_SECS;
 use crate::errors::OpenJackError;
 use crate::events::{Claimed, SweptToUnclaimed};
+use crate::solvency::{
+    assert_round_solvency_floor, required_settlement_reserve, required_undistributed_bounty,
+};
 use crate::state::{ClaimRecord, Round, RoundStatus};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -91,6 +94,17 @@ pub fn claim<'info>(
         .checked_add(WINNERS_CLAIM_WINDOW_SECS)
         .ok_or(OpenJackError::MathOverflow)?;
     let source_pool = if now <= claim_window_end { 0 } else { 1 };
+    let current_settlement_reserve = required_settlement_reserve(round)?;
+    let next_settlement_reserve = current_settlement_reserve
+        .checked_sub(expected_amount)
+        .ok_or(OpenJackError::InsufficientPoolBalance)?;
+    let next_undistributed_bounty = required_undistributed_bounty(round);
+    assert_round_solvency_floor(
+        round,
+        expected_amount,
+        next_undistributed_bounty,
+        next_settlement_reserve,
+    )?;
     debit_claim_source_pool(round, source_pool, expected_amount)?;
     pay_claim_to_claimer(round, &ctx.accounts.claimer.to_account_info(), expected_amount)?;
 
@@ -334,6 +348,12 @@ mod tests {
             treasury_paid_lamports: 0,
             jackpot_pool_balance: 0,
             tier_pool_balances: [0; 5],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_pool_balance: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_pool_initial: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_distributed_so_far: 0,
             winners_pool_balance: 100,
             unclaimed_pool_balance: 50,
             winning_main: [0; 5],
@@ -381,6 +401,8 @@ mod tests {
             count_last_result_code: 0,
             #[cfg(feature = "canonical-freeze-prototype")]
             count_last_result_count: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_reward_paid: 0,
             bump: 0,
         };
 
@@ -404,6 +426,12 @@ mod tests {
             treasury_paid_lamports: 0,
             jackpot_pool_balance: 0,
             tier_pool_balances: [0; 5],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_pool_balance: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_pool_initial: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_distributed_so_far: 0,
             winners_pool_balance: 100,
             unclaimed_pool_balance: 50,
             winning_main: [0; 5],
@@ -451,6 +479,8 @@ mod tests {
             count_last_result_code: 0,
             #[cfg(feature = "canonical-freeze-prototype")]
             count_last_result_count: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_reward_paid: 0,
             bump: 0,
         };
 
@@ -474,6 +504,12 @@ mod tests {
             treasury_paid_lamports: 0,
             jackpot_pool_balance: 0,
             tier_pool_balances: [0; 5],
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_pool_balance: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_pool_initial: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            bounty_distributed_so_far: 0,
             winners_pool_balance: 10,
             unclaimed_pool_balance: 0,
             winning_main: [0; 5],
@@ -521,6 +557,8 @@ mod tests {
             count_last_result_code: 0,
             #[cfg(feature = "canonical-freeze-prototype")]
             count_last_result_count: 0,
+            #[cfg(feature = "canonical-freeze-prototype")]
+            count_last_reward_paid: 0,
             bump: 0,
         };
 

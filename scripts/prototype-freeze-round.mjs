@@ -16,13 +16,18 @@ const IDL_PATH = process.env.OPENJACK_IDL_PATH || path.resolve(process.cwd(), "t
 const AUTHORITY_KEYPAIR_PATH =
   process.env.AUTHORITY_KEYPAIR_PATH || path.resolve(os.homedir(), ".config/solana/id.json");
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
+const READ_RPC_URL = process.env.OPENJACK_READ_RPC_URL || RPC_URL;
 const ROUND_ID = Number(process.env.OPENJACK_PROTOTYPE_ROUND_ID || process.env.READY_ROUND_ID || Math.floor(Date.now() / 1000));
 const OPEN_OFFSET_SECS = Number(process.env.OPENJACK_OPEN_OFFSET_SECS || -30);
-const CLOSE_IN_SECS = Number(process.env.OPENJACK_CLOSE_IN_SECS || 90);
+const CLOSE_IN_SECS = Number(process.env.OPENJACK_CLOSE_IN_SECS || 300);
 const BUY_TICKETS = Number(process.env.OPENJACK_PROTOTYPE_BUY_TICKETS || 10);
 const BUY_TICKETS_PER_TX = Number(process.env.OPENJACK_PROTOTYPE_BUY_TICKETS_PER_TX || 2);
 const ORACLE_PRICE_MICRO_USD_PER_SOL = Number(process.env.OPENJACK_ORACLE_PRICE_MICRO_USD_PER_SOL || 20_000_000);
 const ORACLE_PUBLISH_OFFSET_SECS = Number(process.env.OPENJACK_ORACLE_PUBLISH_OFFSET_SECS || -30);
+const TX_MAX_ATTEMPTS = Number(process.env.OPENJACK_TX_MAX_ATTEMPTS || 3);
+const TX_BACKOFF_MS = Number(process.env.OPENJACK_TX_BACKOFF_MS || 1500);
+const STATE_POLL_MS = Number(process.env.OPENJACK_STATE_POLL_MS || 1500);
+const STATE_POLL_TIMEOUT_MS = Number(process.env.OPENJACK_STATE_POLL_TIMEOUT_MS || 180_000);
 
 const STATUS = {
   0: "OPEN",
@@ -71,6 +76,16 @@ function deriveUserRoundPda(programId, roundId, buyer) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(label, conditionFn, timeoutMs = STATE_POLL_TIMEOUT_MS, pollMs = STATE_POLL_MS) {
+  const start = Date.now();
+  while (Date.now() - start <= timeoutMs) {
+    const res = await conditionFn();
+    if (res) return res;
+    await sleep(pollMs);
+  }
+  throw new Error(`timeout_waiting_for_${label}`);
 }
 
 function randomTicket(seed) {
@@ -133,6 +148,21 @@ async function rpcWithTimeoutTolerance(label, sendFn) {
   }
 }
 
+async function runWithRetries(label, fn, attempts = TX_MAX_ATTEMPTS, backoffMs = TX_BACKOFF_MS) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn(attempt);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= attempts) break;
+      console.warn(`[prototype-freeze] ${label} attempt=${attempt} failed: ${String(error?.message || error)}`);
+      await sleep(backoffMs * attempt);
+    }
+  }
+  throw lastError;
+}
+
 async function sendMethodNoConfirm(methodBuilder, authority, connection) {
   const tx = await methodBuilder.transaction();
   tx.feePayer = authority.publicKey;
@@ -162,6 +192,7 @@ async function main() {
     commitment: "confirmed",
     confirmTransactionInitialTimeout: 120_000,
   });
+  const readConnection = new anchor.web3.Connection(READ_RPC_URL, { commitment: "confirmed" });
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   const programId = new PublicKey(resolvedProgramId);
   let program;
@@ -184,33 +215,42 @@ async function main() {
   }
 
   const now = Math.floor(Date.now() / 1000);
-  let roundInfo = await connection.getAccountInfo(roundPda, "confirmed");
+  let roundInfo = await readConnection.getAccountInfo(roundPda, "confirmed");
   if (!roundInfo) {
     const openTs = now + OPEN_OFFSET_SECS;
     const closeTs = now + CLOSE_IN_SECS;
-    const { signature } = await rpcWithTimeoutTolerance("createRound", () =>
-      program.methods
-        .createRound({
-          roundId: new BN(ROUND_ID),
-          openTs: new BN(openTs),
-          closeTs: new BN(closeTs),
-          treeAddress,
-        })
-        .accounts({
-          authority: wallet.publicKey,
-          config: configPda,
-          round: roundPda,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc(),
-    );
-    if (signature) {
-      console.log(`[prototype-freeze] createRound sig=${signature} roundId=${ROUND_ID}`);
-    }
-    roundInfo = await connection.getAccountInfo(roundPda, "confirmed");
+    await runWithRetries("createRound", async () => {
+      const { signature } = await rpcWithTimeoutTolerance("createRound", () =>
+        program.methods
+          .createRound({
+            roundId: new BN(ROUND_ID),
+            openTs: new BN(openTs),
+            closeTs: new BN(closeTs),
+            treeAddress,
+          })
+          .accounts({
+            authority: wallet.publicKey,
+            config: configPda,
+            round: roundPda,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc(),
+      );
+      if (signature) {
+        console.log(`[prototype-freeze] createRound sig=${signature} roundId=${ROUND_ID}`);
+      }
+      roundInfo = await waitFor("round_account_created", async () => readConnection.getAccountInfo(roundPda, "confirmed"));
+      return roundInfo;
+    });
   }
 
-  let round = await program.account.round.fetch(roundPda);
+  let round = await waitFor("round_fetch_after_create", async () => {
+    try {
+      return await program.account.round.fetch(roundPda);
+    } catch {
+      return null;
+    }
+  });
   if (Number(round.status) !== 0) {
     throw new Error(`Round ${ROUND_ID} not OPEN (status=${STATUS[Number(round.status)] || round.status})`);
   }
@@ -221,6 +261,11 @@ async function main() {
   if (BUY_TICKETS > 0) {
     const tickets = Array.from({ length: BUY_TICKETS }, (_, i) => randomTicket(i + 1));
     for (let i = 0; i < tickets.length; i += BUY_TICKETS_PER_TX) {
+      const liveRound = await program.account.round.fetch(roundPda);
+      if (Number(liveRound.status) !== 0) {
+        console.warn(`[prototype-freeze] buyTickets halted at offset=${i} because status=${STATUS[Number(liveRound.status)] || liveRound.status}`);
+        break;
+      }
       const chunk = tickets.slice(i, i + BUY_TICKETS_PER_TX);
       const oraclePublishTs = Math.floor(Date.now() / 1000) + ORACLE_PUBLISH_OFFSET_SECS;
       let signature = null;
@@ -262,6 +307,7 @@ async function main() {
       if (signature) {
         console.log(`[prototype-freeze] buyTickets sig=${signature} qty=${chunk.length} offset=${i}`);
       }
+      await sleep(200);
     }
   } else {
     console.log("[prototype-freeze] skipping buys (OPENJACK_PROTOTYPE_BUY_TICKETS=0)");
@@ -274,30 +320,51 @@ async function main() {
   }
 
   if (Number(round.status) === 0) {
-    const { signature } = await rpcWithTimeoutTolerance("closeRound", () =>
-      program.methods.closeRound().accounts({ round: roundPda }).rpc(),
-    );
-    if (signature) {
-      console.log(`[prototype-freeze] closeRound sig=${signature}`);
-    }
+    await runWithRetries("closeRound", async () => {
+      const { signature } = await rpcWithTimeoutTolerance("closeRound", () =>
+        program.methods.closeRound().accounts({ round: roundPda }).rpc(),
+      );
+      if (signature) {
+        console.log(`[prototype-freeze] closeRound sig=${signature}`);
+      }
+      const updated = await waitFor("round_closed", async () => {
+        const r = await program.account.round.fetch(roundPda);
+        return Number(r.status) !== 0 ? r : null;
+      });
+      return updated;
+    });
   }
 
   round = await program.account.round.fetch(roundPda);
   if (Number(round.status) === 1) {
-    const { signature } = await rpcWithTimeoutTolerance("beginFreeze", () =>
-      program.methods.beginFreeze().accounts({ round: roundPda }).rpc(),
-    );
-    if (signature) {
-      console.log(`[prototype-freeze] beginFreeze sig=${signature}`);
-    }
+    await runWithRetries("beginFreeze", async () => {
+      const { signature } = await rpcWithTimeoutTolerance("beginFreeze", () =>
+        program.methods.beginFreeze().accounts({ round: roundPda }).rpc(),
+      );
+      if (signature) {
+        console.log(`[prototype-freeze] beginFreeze sig=${signature}`);
+      }
+      const updated = await waitFor("begin_freeze_committed", async () => {
+        const r = await program.account.round.fetch(roundPda);
+        return Number(r.status) === 5 || Number(r.status) === 6 ? r : null;
+      });
+      return updated;
+    });
   }
 
-  const { signature: freezeSig } = await rpcWithTimeoutTolerance("freezeTicketSet", () =>
-    program.methods.freezeTicketSet().accounts({ round: roundPda }).rpc(),
-  );
-  if (freezeSig) {
-    console.log(`[prototype-freeze] freezeTicketSet sig=${freezeSig}`);
-  }
+  await runWithRetries("freezeTicketSet", async () => {
+    const { signature: freezeSig } = await rpcWithTimeoutTolerance("freezeTicketSet", () =>
+      program.methods.freezeTicketSet().accounts({ round: roundPda }).rpc(),
+    );
+    if (freezeSig) {
+      console.log(`[prototype-freeze] freezeTicketSet sig=${freezeSig}`);
+    }
+    const updated = await waitFor("freeze_committed", async () => {
+      const r = await program.account.round.fetch(roundPda);
+      return Boolean(r.freezeCommitted) && Number(r.status) === 6 ? r : null;
+    });
+    return updated;
+  });
 
   round = await program.account.round.fetch(roundPda);
   const statusCode = Number(round.status);

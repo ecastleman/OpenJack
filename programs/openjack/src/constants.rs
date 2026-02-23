@@ -5,6 +5,13 @@ pub const MAIN_K: usize = 5;
 pub const BONUS_N: u8 = 10;
 
 pub const TREASURY_BPS: u16 = 200;
+#[cfg(feature = "canonical-freeze-prototype")]
+pub const BOUNTY_BPS: u16 = 300;
+#[cfg(not(feature = "canonical-freeze-prototype"))]
+pub const BOUNTY_BPS: u16 = 0;
+#[cfg(feature = "canonical-freeze-prototype")]
+pub const LOWER_POOL_BPS: u16 = 1000;
+#[cfg(not(feature = "canonical-freeze-prototype"))]
 pub const LOWER_POOL_BPS: u16 = 1300;
 pub const JACKPOT_BPS: u16 = 8500;
 
